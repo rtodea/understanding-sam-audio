@@ -15,15 +15,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# ── PyTorch with CUDA 12.1 (large layer — install before local code) ───────
+# ── PyTorch + CUDA-dependent packages ─────────────────────────────────────
+# torchcodec MUST come from the same cu121 index as torch — installing it
+# from PyPI produces a binary built against a different torch ABI, causing
+# "undefined symbol" errors at runtime.
 RUN python3.11 -m pip install --no-cache-dir \
-    torch torchaudio torchvision \
+    torch torchaudio torchvision torchcodec \
     --index-url https://download.pytorch.org/whl/cu121
 
-# ── sam_audio package (repo root) ──────────────────────────────────────────
+# ── sam_audio package (repo root) ─────────────────────────────────────────
+# --extra-index-url ensures any remaining deps that are also on the cu121
+# index (e.g. torchdiffeq) are resolved against the already-installed
+# cu121 builds rather than being pulled from PyPI and overwriting them.
 COPY pyproject.toml .
 COPY sam_audio/ ./sam_audio/
-RUN python3.11 -m pip install --no-cache-dir .
+RUN python3.11 -m pip install --no-cache-dir \
+    --extra-index-url https://download.pytorch.org/whl/cu121 \
+    .
 
 # ── webrtc_server package ──────────────────────────────────────────────────
 COPY webrtc-server/ ./webrtc-server/
