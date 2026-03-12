@@ -4,14 +4,14 @@ FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ── System deps ────────────────────────────────────────────────────────────
-# Note: do NOT install python3-pip via apt — it targets Python 3.10 on Ubuntu 22.04.
-# Bootstrap pip for Python 3.11 via ensurepip instead.
+# Ubuntu 22.04 disables ensurepip and python3-pip targets Python 3.10.
+# Bootstrap pip for Python 3.11 via get-pip.py instead.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 python3.11-dev python3.11-venv git ffmpeg \
+    python3.11 python3.11-dev curl git ffmpeg \
     && ln -sf /usr/bin/python3.11 /usr/bin/python \
-    && rm -rf /var/lib/apt/lists/* \
-    && python3.11 -m ensurepip --upgrade \
-    && python3.11 -m pip install --upgrade pip setuptools wheel
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
+    && python3.11 -m pip install --upgrade setuptools wheel \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
