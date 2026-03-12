@@ -115,7 +115,7 @@ flowchart TB
             XT["xₜ + timestep embedding"] --> SELF_ATT[Self-attention\nwith RoPE]
             SELF_ATT --> CROSS_ATT[Cross-attention\n← context]
             CROSS_ATT --> FFN2[FFN / SwiGLU]
-            FFN2 --> VEL[velocity v̂θ(xₜ, t)]
+            FFN2 --> VEL["velocity v_theta(x_t, t)"]
         end
     end
 
@@ -128,7 +128,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     FEAT_TGT["Target features\n[B, T, 128]"] --> DEC[DACVAE Decoder\nTransposed Conv stack]
-    FEAT_RES["Residual features\n[B, T, 128]"] --> DEC2[DACVAE Decoder\n(shared weights)]
+    FEAT_RES["Residual features\n[B, T, 128]"] --> DEC2["DACVAE Decoder\nshared weights"]
     DEC --> TGT["target.wav\n48kHz"]
     DEC2 --> RES["residual.wav\n48kHz"]
 ```
