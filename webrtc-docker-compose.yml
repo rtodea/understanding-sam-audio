@@ -3,7 +3,7 @@ services:
   nginx:
     build:
       context: .
-      dockerfile: nginx/Dockerfile
+      dockerfile: webrtc-nginx/Dockerfile
     ports:
       - "${NGINX_PORT:-8080}:80"
     depends_on:
@@ -16,7 +16,7 @@ services:
       dockerfile: webrtc-server/Dockerfile
     expose:
       - "8000"          # internal only — NGINX proxies, host cannot reach it directly
-    env_file: .env
+    env_file: .env.webrtc
     environment:
       HF_HOME: /app/hf_cache
     volumes:

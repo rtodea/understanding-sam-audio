@@ -1,12 +1,12 @@
 # Development override — bind-mount source for live editing without rebuilds.
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   docker compose -f webrtc-docker-compose.yml -f webrtc-docker-compose.dev.yml up
 #
 # Frontend changes: edit webrtc-client/ → refresh browser (no restart needed).
 # Backend changes:  edit webrtc-server/ → uvicorn --reload picks them up automatically.
 #
-# Tip: use sam-audio-small in .env when developing to halve GPU warm-up time.
+# Tip: use sam-audio-small in .env.webrtc when developing to halve GPU warm-up time.
 
 services:
 
@@ -16,7 +16,7 @@ services:
     build: !reset null
     volumes:
       - ./webrtc-client:/usr/share/nginx/html:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./webrtc-nginx/conf.d:/etc/nginx/conf.d:ro
 
   webrtc-server:
     volumes:
