@@ -142,7 +142,7 @@ flowchart LR
     PROXY --> PLAY --> DL
 ```
 
-Latency on RTX 4070: **~2–4 s** end-to-end. See [realtime-webrtc.md](./realtime-webrtc.md) for the full analysis.
+Latency on RTX 4070: **~2–4 s** end-to-end. See [realtime-webrtc.md](./doc/realtime-webrtc.md) for the full analysis.
 
 ---
 
@@ -220,5 +220,5 @@ docker compose -f webrtc-docker-compose.yml down --volumes --remove-orphans \
 | WebSocket error immediately | Server not ready / still loading model | Wait 10–30 s and retry; check `docker compose logs webrtc-server` |
 | `CUDA out of memory` | VRAM exceeded | Set `SAM_MODEL=facebook/sam-audio-base` in `.env.webrtc` |
 | `401 Unauthorized` pulling model | HF_TOKEN missing or no access | Set token, request model access on HuggingFace |
-| Audio plays but sounds wrong | Wrong prompt | Try a more specific noun phrase, see [prompting-guide.md](./prompting-guide.md) |
+| Audio plays but sounds wrong | Wrong prompt | Try a more specific noun phrase, see [prompting-guide.md](./doc/prompting-guide.md) |
 | Dev changes not picked up | Wrong compose file | Confirm you're using both `-f` flags |
