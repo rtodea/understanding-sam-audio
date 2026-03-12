@@ -8,3 +8,8 @@ dist
 .ipynb_checkpoints
 .env
 .env.webrtc
+*~
+*.un~
+.claude/
+.idea/
+uv.lock
