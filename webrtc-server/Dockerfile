@@ -22,12 +22,17 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 WORKDIR /app
 
-# ── PyTorch + CUDA-dependent packages ──────────────────────────────────────
-# torchcodec MUST come from the same cu124 index as torch — the PyPI binary
-# is built against a different ABI and will fail with "undefined symbol".
+# ── PyTorch with CUDA 12.4 ─────────────────────────────────────────────────
 RUN pip install --no-cache-dir \
-    torch torchaudio torchvision torchcodec \
+    torch torchaudio torchvision \
     --index-url https://download.pytorch.org/whl/cu124
+
+# ── torchcodec from PyPI ────────────────────────────────────────────────────
+# The cu124 index only carries an old torchcodec 0.1.x build that is missing
+# AudioDecoder. PyPI has the full 0.2.x+ API. Installed after torch so pip
+# resolves a wheel whose ABI matches the torch version already present.
+# Ubuntu 24.04 ships FFmpeg 6 (libavutil.so.58) which torchcodec 0.2+ supports.
+RUN pip install --no-cache-dir torchcodec
 
 # ── sam_audio package (repo root) ──────────────────────────────────────────
 COPY pyproject.toml .
