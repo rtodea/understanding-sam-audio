@@ -104,8 +104,8 @@ docker compose -f webrtc-docker-compose.yml -f webrtc-docker-compose.dev.yml up 
 |----------|---------|-------------|
 | `HF_TOKEN` | — | **Required.** HuggingFace access token. |
 | `NGINX_PORT` | `8080` | Host port for the browser. |
-| `SAM_MODEL` | `facebook/sam-audio-large` | Model variant (`small` / `base` / `large`). |
-| `SAM_RERANKING_CANDIDATES` | `1` | Higher = better quality, more VRAM. RTX 4070 + large: keep at 1. |
+| `SAM_MODEL` | `facebook/sam-audio-base` | Model variant. `base` fits RTX 4070 Laptop (8 GB). Use `large` only on 12 GB+ VRAM. |
+| `SAM_RERANKING_CANDIDATES` | `1` | Higher = better quality, more VRAM. Keep at 1 on 8 GB cards. |
 | `CHUNK_SECONDS` | `3.0` | Audio chunk duration sent to the model. |
 | `OVERLAP_SECONDS` | `1.5` | Overlap between chunks for crossfade (must be < CHUNK_SECONDS). |
 | `DEVICE` | _(auto)_ | Force `cuda` or `cpu`. Leave empty for auto-detection. |

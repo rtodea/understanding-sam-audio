@@ -17,19 +17,20 @@ This guide covers a verified local setup for SAM-Audio on Windows 11 with an NVI
 
 ### Supported GPUs
 
-SAM-Audio requires a CUDA-capable GPU. The RTX 4070 is a strong fit:
+SAM-Audio requires a CUDA-capable GPU. Note the VRAM difference between laptop and desktop variants of the same model name:
 
-| GPU | VRAM | CUDA Arch | sam-audio-small | sam-audio-base | sam-audio-large |
-|-----|------|-----------|:-:|:-:|:-:|
-| RTX 4070 | 12 GB | Ada (sm_89) | ✅ | ✅ | ✅ (tight) |
-| RTX 4070 Ti | 12 GB | Ada (sm_89) | ✅ | ✅ | ✅ |
-| RTX 4080 | 16 GB | Ada (sm_89) | ✅ | ✅ | ✅ comfortable |
-| RTX 4090 | 24 GB | Ada (sm_89) | ✅ | ✅ | ✅ + reranking K=8 |
-| RTX 3080 | 10 GB | Ampere (sm_86) | ✅ | ⚠️ tight | ❌ OOM |
-| RTX 3090 | 24 GB | Ampere (sm_86) | ✅ | ✅ | ✅ |
-| A100 80GB | 80 GB | Ampere (sm_80) | ✅ | ✅ | ✅ multi-batch |
+| GPU | Variant | VRAM | CUDA Arch | sam-audio-small | sam-audio-base | sam-audio-large |
+|-----|---------|------|-----------|:-:|:-:|:-:|
+| RTX 4070 | Laptop | **8 GB** | Ada (sm_89) | ✅ | ✅ | ❌ OOM |
+| RTX 4070 | Desktop | 12 GB | Ada (sm_89) | ✅ | ✅ | ⚠️ tight (fp16 only) |
+| RTX 4070 Ti | Desktop | 12 GB | Ada (sm_89) | ✅ | ✅ | ✅ |
+| RTX 4080 | Desktop | 16 GB | Ada (sm_89) | ✅ | ✅ | ✅ comfortable |
+| RTX 4090 | Desktop | 24 GB | Ada (sm_89) | ✅ | ✅ | ✅ + reranking K=8 |
+| RTX 3080 | Desktop | 10 GB | Ampere (sm_86) | ✅ | ⚠️ tight | ❌ OOM |
+| RTX 3090 | Desktop | 24 GB | Ampere (sm_86) | ✅ | ✅ | ✅ |
+| A100 80GB | Server | 80 GB | Ampere (sm_80) | ✅ | ✅ | ✅ multi-batch |
 
-> **RTX 4070 tip:** Run `sam-audio-large` with `reranking_candidates=1`. Increase to 4 if you have headroom after loading (use `torch.cuda.memory_summary()` to check).
+> **RTX 4070 Laptop (8 GB) tip:** Use `sam-audio-base` — it fits comfortably at ~6 GB. `sam-audio-large` requires ~9–11 GB and will OOM. Check your variant with `nvidia-smi` (8188 MiB = laptop, 12282 MiB = desktop).
 
 ### CUDA / Driver Requirements
 
@@ -148,22 +149,34 @@ flowchart TD
 
 ---
 
-## Memory Usage on RTX 4070 (12 GB VRAM)
+## Memory Usage by GPU Variant
 
-| Model | `reranking_candidates` | Approx VRAM |
-|-------|------------------------|-------------|
-| sam-audio-small | 1 | ~4 GB |
-| sam-audio-small | 8 | ~6 GB |
-| sam-audio-base | 1 | ~6 GB |
-| sam-audio-base | 4 | ~8 GB |
-| sam-audio-large | 1 | ~9–11 GB |
-| sam-audio-large | 4 | OOM risk |
+### RTX 4070 Laptop (8 GB VRAM)
+
+| Model | `reranking_candidates` | Approx VRAM | Fits? |
+|-------|------------------------|-------------|:-----:|
+| sam-audio-small | 1 | ~4 GB | ✅ |
+| sam-audio-small | 8 | ~6 GB | ✅ |
+| sam-audio-base  | 1 | ~6 GB | ✅ |
+| sam-audio-base  | 4 | ~8 GB | ⚠️ tight |
+| sam-audio-large | 1 | ~9–11 GB | ❌ OOM |
+
+**Recommended:** `sam-audio-base`, `reranking_candidates=1`.
+
+### RTX 4070 Desktop (12 GB VRAM)
+
+| Model | `reranking_candidates` | Approx VRAM | Fits? |
+|-------|------------------------|-------------|:-----:|
+| sam-audio-base  | 1 | ~6 GB | ✅ |
+| sam-audio-base  | 4 | ~8 GB | ✅ |
+| sam-audio-large | 1 | ~9–11 GB | ✅ (fp16 only) |
+| sam-audio-large | 4 | ~12+ GB | ❌ OOM risk |
 
 > Use `model.half()` (fp16) to reduce VRAM by ~40% with minimal quality loss on Ada GPUs.
 
 ```python
-model = SAMAudio.from_pretrained("facebook/sam-audio-large")
-model = model.eval().half().cuda()   # fp16 on RTX 4070
+model = SAMAudio.from_pretrained("facebook/sam-audio-base")
+model = model.eval().half().cuda()   # fp16, safe on both laptop and desktop 4070
 ```
 
 ---
