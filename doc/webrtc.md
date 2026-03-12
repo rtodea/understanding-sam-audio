@@ -146,14 +146,67 @@ Latency on RTX 4070: **~2–4 s** end-to-end. See [realtime-webrtc.md](./realtim
 
 ---
 
-## Stopping and Cleanup
+## Full Cleanup
+
+Run these steps in order to leave your machine exactly as it was before.
+
+### 1. Stop and remove containers, networks, and volumes
 
 ```bash
-# Stop containers
-docker compose -f webrtc-docker-compose.yml down
+docker compose -f webrtc-docker-compose.yml down --volumes --remove-orphans
+```
 
-# Also remove the model weight cache volume (frees ~9-15 GB)
-docker compose -f webrtc-docker-compose.yml down -v
+`--volumes` removes the `hf-cache` named volume (model weights, ~9–15 GB).
+`--remove-orphans` removes any leftover containers from previous runs.
+
+### 2. Remove the built images
+
+```bash
+docker image rm \
+  understanding-sam-audio-nginx \
+  understanding-sam-audio-webrtc-server \
+  2>/dev/null || true
+```
+
+> Image names are derived from the compose project name (the repo folder name) + service name.
+> Run `docker images | grep sam-audio` first if you're unsure of the exact names.
+
+### 3. Prune dangling build cache
+
+The multi-stage build leaves cached layers that don't show up as named images:
+
+```bash
+docker builder prune --filter "until=24h" --force
+```
+
+To nuke the entire Docker build cache (affects all projects, not just this one):
+
+```bash
+docker builder prune --all --force
+```
+
+### 4. Verify nothing remains
+
+```bash
+# Should return nothing webrtc / sam-audio related
+docker ps -a         | grep -i sam
+docker images        | grep -i sam
+docker volume ls     | grep -i sam
+docker network ls    | grep -i sam
+```
+
+### 5. Remove your env file
+
+```bash
+rm .env.webrtc
+```
+
+### One-liner (steps 1–3 combined)
+
+```bash
+docker compose -f webrtc-docker-compose.yml down --volumes --remove-orphans \
+  && docker image rm understanding-sam-audio-nginx understanding-sam-audio-webrtc-server 2>/dev/null || true \
+  && docker builder prune --filter "until=24h" --force
 ```
 
 ---
