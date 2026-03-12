@@ -5,7 +5,7 @@
 #     supports FFmpeg 5-7, so it fails to load on 22.04.
 #   - Ubuntu 24.04 ships FFmpeg 6 (libavutil.so.58) — supported by torchcodec.
 #   - nvidia/cuda:12.1 is deprecated; 12.4 is the current stable release.
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu24.04
+FROM nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
