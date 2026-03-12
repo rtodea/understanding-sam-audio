@@ -1,0 +1,36 @@
+services:
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    depends_on:
+      - webrtc-server
+    restart: unless-stopped
+
+  webrtc-server:
+    build:
+      context: .
+      dockerfile: webrtc-server/Dockerfile
+    expose:
+      - "8000"          # internal only — NGINX proxies, host cannot reach it directly
+    env_file: .env
+    environment:
+      HF_HOME: /app/hf_cache
+    volumes:
+      - hf-cache:/app/hf_cache
+    restart: unless-stopped
+    # GPU access — silently ignored on macOS / machines without NVIDIA runtime.
+    # On Windows 11 (WSL2) or Linux: install NVIDIA Container Toolkit first.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  hf-cache:       # persists model weights across container restarts (~5–15 GB)

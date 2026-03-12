@@ -1,0 +1,180 @@
+/* ── Reset / base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0f172a;
+  --surface:   #1e293b;
+  --border:    #334155;
+  --text:      #e2e8f0;
+  --muted:     #94a3b8;
+  --accent:    #38bdf8;
+  --danger:    #f87171;
+  --success:   #4ade80;
+  --warning:   #fbbf24;
+  --radius:    8px;
+  --gap:       1rem;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ── Layout ───────────────────────────────────────────────── */
+#app {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: var(--gap);
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+h1 {
+  grid-column: 1 / -1;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+#video-preview, #visualizer-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+#control-panel-container {
+  grid-column: 1 / -1;
+}
+
+#download-container {
+  grid-column: 1 / -1;
+}
+
+/* ── Video ────────────────────────────────────────────────── */
+.video-preview {
+  width: 100%;
+  display: block;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  background: #000;
+}
+
+/* ── Visualizer ───────────────────────────────────────────── */
+.visualizer {
+  width: 100%;
+  height: 80px;
+  display: block;
+}
+
+/* ── Control Panel ────────────────────────────────────────── */
+.control-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.prompt-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.prompt-row label {
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.prompt-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.prompt-input:focus { border-color: var(--accent); }
+.prompt-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.button-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.btn {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn:not(:disabled):active { transform: scale(0.97); }
+
+.btn-start    { background: var(--accent);   color: #0f172a; }
+.btn-stop     { background: var(--danger);   color: #fff; }
+.btn-download { background: var(--success);  color: #0f172a; text-decoration: none; display: inline-block; }
+
+/* ── Status badge ─────────────────────────────────────────── */
+.status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.status-idle       { background: var(--border);  color: var(--muted); }
+.status-connecting { background: var(--warning);  color: #0f172a; }
+.status-active     { background: var(--success);  color: #0f172a; }
+.status-stopping   { background: var(--warning);  color: #0f172a; }
+
+/* ── Error box ────────────────────────────────────────────── */
+.error-box {
+  background: #450a0a;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  color: var(--danger);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* ── Download panel ───────────────────────────────────────── */
+.download-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.download-label { color: var(--muted); font-size: 0.875rem; }
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 600px) {
+  #app { grid-template-columns: 1fr; }
+}

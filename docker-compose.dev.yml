@@ -1,0 +1,33 @@
+# Development override — bind-mount source for live editing without rebuilds.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Frontend changes: edit webrtc-client/ → refresh browser (no restart needed).
+# Backend changes:  edit webrtc-server/ → uvicorn --reload picks them up automatically.
+#
+# Tip: use sam-audio-small in .env when developing to halve GPU warm-up time.
+
+services:
+
+  nginx:
+    # Skip the baked image; use the official nginx:alpine directly.
+    image: nginx:alpine
+    build: !reset null
+    volumes:
+      - ./webrtc-client:/usr/share/nginx/html:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+
+  webrtc-server:
+    volumes:
+      # Mount source on top of the installed package so edits are picked up.
+      - ./webrtc-server/webrtc_server:/app/webrtc-server/webrtc_server:ro
+      - hf-cache:/app/hf_cache
+    # --reload watches the mounted source directory.
+    command: >
+      uvicorn webrtc_server.main:app
+        --host 0.0.0.0
+        --port 8000
+        --workers 1
+        --reload
+        --reload-dir /app/webrtc-server/webrtc_server
