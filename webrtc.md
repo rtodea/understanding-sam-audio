@@ -19,30 +19,30 @@ webrtc-docker-compose.dev.yml  Dev override (bind-mounts + hot reload)
 
 | Tool | Windows 11 | macOS |
 |------|-----------|-------|
-| Docker Desktop | Required (WSL2 backend) | Required |
+| Docker Desktop ≥ 4.26 | Required | Required |
 | NVIDIA driver ≥ 527 | Required for GPU | N/A |
-| NVIDIA Container Toolkit | Required (inside WSL2) | N/A |
 | HuggingFace account | Required | Required |
 
 GPU on macOS is not supported. The server falls back to CPU automatically — separation will work but will be ~50–100× slower.
 
-### NVIDIA Container Toolkit (Windows 11 / WSL2 — one-time setup)
+### Windows 11 GPU setup — no WSL2 interaction needed
 
-```bash
-# Run inside WSL2
-distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-  | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L "https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list" \
-  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-  | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
+Docker Desktop uses WSL2 as its internal engine, but you never need to open a WSL2 terminal. GPU passthrough to containers is handled automatically by Docker Desktop since version 3.1 — as long as your NVIDIA driver is up to date.
 
-# Verify
-docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
-```
+**Steps (all in PowerShell or Windows Terminal):**
+
+1. Install or update [Docker Desktop](https://www.docker.com/products/docker-desktop/) (≥ 4.26).
+2. Make sure your NVIDIA driver is ≥ 527 — check with:
+   ```powershell
+   nvidia-smi
+   ```
+3. Verify Docker can see the GPU:
+   ```powershell
+   docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
+   ```
+   If this prints your GPU info, you're done. No further setup required.
+
+> **WSL2 manual setup is only needed** if you are running Docker Engine directly inside a WSL2 distro (without Docker Desktop). That is an advanced workflow — if you installed Docker Desktop normally, skip it entirely.
 
 ---
 
