@@ -11,6 +11,7 @@
 | [prompting-guide.md](./prompting-guide.md) | How to write effective prompts; flow diagrams for each mode |
 | [setup-windows.md](./setup-windows.md) | Verified setup for Windows 11 + NVIDIA RTX 4070 |
 | [deployment.md](./deployment.md) | Docker Compose and Kubernetes deployment recipes |
+| [realtime-webrtc.md](./realtime-webrtc.md) | Near-real-time streaming via WebRTC/WebSocket — browser mic+camera → separated audio download |
 
 ## One-Paragraph Summary
 
