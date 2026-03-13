@@ -42,11 +42,17 @@ def get_model() -> tuple[SAMAudio, SAMAudioProcessor]:
             )
 
         _processor = SAMAudioProcessor.from_pretrained(settings.sam_model)
+        logger.info("Processor loaded. Loading model weights …")
         _model = SAMAudio.from_pretrained(settings.sam_model).eval()
+        logger.info("Model loaded to CPU RAM. Moving to %s …", device)
 
         if device == "cuda":
             # fp16 is only safe on CUDA; CPU does not support float16 inference.
-            _model = _model.half().cuda()
+            logger.info("Converting to fp16 …")
+            _model = _model.half()
+            logger.info("fp16 done. Calling .cuda() …")
+            _model = _model.cuda()
+            logger.info(".cuda() complete.")
 
         logger.info("Model ready.")
         return _model, _processor

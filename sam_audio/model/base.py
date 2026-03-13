@@ -1,11 +1,14 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates. All Rights Reserved\n
 
 import json
+import logging
 import os
 from typing import Callable, Dict, Optional, Union
 
 import torch
 from huggingface_hub import ModelHubMixin, snapshot_download
+
+logger = logging.getLogger(__name__)
 
 
 class BaseModel(torch.nn.Module, ModelHubMixin):
@@ -51,11 +54,16 @@ class BaseModel(torch.nn.Module, ModelHubMixin):
                 config[key] = value
 
         config = cls.config_cls(**config)
+        logger.info("%s: building model architecture …", cls.__name__)
         model = cls(config)
+        ckpt_path = os.path.join(cached_model_dir, "checkpoint.pt")
+        logger.info("%s: loading checkpoint from %s …", cls.__name__, ckpt_path)
         state_dict = torch.load(
-            os.path.join(cached_model_dir, "checkpoint.pt"),
+            ckpt_path,
             weights_only=True,
             map_location=map_location,
         )
+        logger.info("%s: applying state_dict …", cls.__name__)
         model.load_state_dict(state_dict, strict=strict)
+        logger.info("%s: done.", cls.__name__)
         return model
