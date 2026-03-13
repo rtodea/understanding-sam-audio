@@ -136,9 +136,16 @@ docker compose -f webrtc-docker-compose.yml -f webrtc-docker-compose.dev.yml up 
 |-----------------|---------------|
 | `webrtc-client/` JS or CSS | Refresh the browser tab (no container restart) |
 | `webrtc-server/webrtc_server/` Python | `uvicorn --reload` restarts the server automatically |
+| `sam_audio/` Python | `uvicorn --reload` restarts the server automatically |
 | `webrtc-nginx/conf.d/default.conf` | `docker compose restart nginx` |
 
 **Tip:** Use `SAM_MODEL=facebook/sam-audio-small` in `.env.webrtc` during development to cut GPU warm-up time roughly in half.
+
+Changes to `webrtc-docker-compose.dev.yml` itself are **not** hot-reloaded. After editing compose settings such as mounts, environment variables, or commands, recreate the affected container:
+
+```bash
+docker compose -f webrtc-docker-compose.yml -f webrtc-docker-compose.dev.yml up -d --force-recreate webrtc-server
+```
 
 ---
 
@@ -163,9 +170,9 @@ flowchart LR
     subgraph Browser
         MIC[Microphone\ngetUserMedia]
         CAM[Camera\ngetUserMedia]
-        REC[MediaRecorder\naudio/webm;codecs=opus\n3 s chunks]
+        REC[Web Audio capture\nmono float32 PCM\n~250 ms flush]
         PLAY[Web Audio API\nscheduled playback]
-        DL[Download\nfloat32 WAV]
+        DL[Download\nassembled WAV]
     end
 
     subgraph NGINX["NGINX :8080"]
@@ -180,13 +187,15 @@ flowchart LR
     end
 
     MIC & CAM --> REC
-    REC -->|WebSocket binary| PROXY
+    REC -->|WebSocket binary\npcm_f32le| PROXY
     PROXY --> BUF --> SAM --> CF
     CF -->|WAV chunk| PROXY
     PROXY --> PLAY --> DL
 ```
 
-Latency on RTX 4070: **~2–4 s** end-to-end. See [realtime-webrtc.md](./doc/realtime-webrtc.md) for the full analysis.
+The browser now plays separated audio automatically as processed WAV chunks arrive, and the **Download separated.wav** button assembles those same decoded chunks after you stop the session.
+
+Latency on RTX 4070: **~2–4 s** end-to-end after the model is warm. See [realtime-webrtc.md](./doc/realtime-webrtc.md) for the earlier WebRTC/WebM transport analysis.
 
 ---
 
@@ -259,7 +268,7 @@ docker compose -f webrtc-docker-compose.yml down --volumes --remove-orphans \
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| "This app requires Chrome or Firefox" | Safari / unsupported browser | Use Chrome ≥ 90 or Firefox ≥ 85 |
+| "This app requires a browser with Web Audio and getUserMedia support" | Unsupported browser | Use Chrome ≥ 90 or Firefox ≥ 85 |
 | Blank video, no mic prompt | HTTPS required on some deployments | Use `localhost` (HTTP is allowed) or add TLS |
 | WebSocket error / 502 immediately after startup | Server still downloading or loading model | Normal on first run — can take 30–60 min while ~28 GB of sub-models download. Watch the logs for the startup sequence and track cache growth with `docker exec $(docker ps -qf name=webrtc-server) du -sh /app/hf_cache` |
 | `CUDA out of memory` | VRAM exceeded | Set `SAM_MODEL=facebook/sam-audio-base` in `.env.webrtc` |

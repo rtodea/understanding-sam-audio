@@ -93,11 +93,13 @@ state.addEventListener('session:start', async () => {
 
   wsService.addEventListener('error', () => {
     state.setError('WebSocket connection error — is the server running?');
-    teardownSession();
+    finalizeSession();
   }, { once: true });
 
   wsService.addEventListener('close', () => {
-    if (state.status !== 'idle') teardownSession();
+    if (state.status !== 'idle') {
+      void finalizeSession();
+    }
   }, { once: true });
 
   // Connect AFTER attaching listeners to avoid missing 'open' on fast connections
@@ -109,15 +111,26 @@ state.addEventListener('session:start', async () => {
 state.addEventListener('session:stop', teardownSession);
 
 function teardownSession() {
-  if (state.status === 'idle') return;
+  if (state.status !== 'active') return;
   state.setStatus('stopping');
 
   recorder.stop();
-  wsService.disconnect();
   mediaCapture.stop();
   videoPreview.detach();
   visualizer.detach();
+  wsService.sendJson({ event: 'stop' });
+}
 
+async function finalizeSession() {
+  if (state.status === 'idle') return;
+
+  recorder.stop();
+  mediaCapture.stop();
+  videoPreview.detach();
+  visualizer.detach();
+  wsService.disconnect();
+
+  await playback.drain();
   downloadBtn.present(playback.getDecodedChunks());
   playback.reset();
 

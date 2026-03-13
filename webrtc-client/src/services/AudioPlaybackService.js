@@ -6,6 +6,7 @@ export class AudioPlaybackService {
   #ctx = null;
   #analyser = null;
   #nextPlayTime = 0;
+  #pendingDecode = Promise.resolve();
 
   /** @type {Float32Array[]} */
   #decodedChunks = [];
@@ -33,22 +34,30 @@ export class AudioPlaybackService {
    * @param {ArrayBuffer} arrayBuffer
    */
   async enqueue(arrayBuffer) {
-    const audioBuffer = await this.#ctx.decodeAudioData(arrayBuffer);
+    this.#pendingDecode = this.#pendingDecode.then(async () => {
+      const audioBuffer = await this.#ctx.decodeAudioData(arrayBuffer);
 
-    // Keep a copy of the PCM for the download encoder.
-    this.#decodedChunks.push(audioBuffer.getChannelData(0).slice());
+      // Keep a copy of the PCM for the download encoder.
+      this.#decodedChunks.push(audioBuffer.getChannelData(0).slice());
 
-    // Schedule playback with a small look-ahead to avoid gaps.
-    const source = this.#ctx.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(this.#analyser);
+      // Schedule playback with a small look-ahead to avoid gaps.
+      const source = this.#ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.#analyser);
 
-    const now = this.#ctx.currentTime;
-    if (this.#nextPlayTime < now) {
-      this.#nextPlayTime = now + 0.05;
-    }
-    source.start(this.#nextPlayTime);
-    this.#nextPlayTime += audioBuffer.duration;
+      const now = this.#ctx.currentTime;
+      if (this.#nextPlayTime < now) {
+        this.#nextPlayTime = now + 0.05;
+      }
+      source.start(this.#nextPlayTime);
+      this.#nextPlayTime += audioBuffer.duration;
+    });
+
+    return this.#pendingDecode;
+  }
+
+  async drain() {
+    await this.#pendingDecode;
   }
 
   /** @returns {AnalyserNode} */
@@ -61,6 +70,7 @@ export class AudioPlaybackService {
   reset() {
     this.#decodedChunks = [];
     this.#nextPlayTime = 0;
+    this.#pendingDecode = Promise.resolve();
   }
 
   teardown() {
