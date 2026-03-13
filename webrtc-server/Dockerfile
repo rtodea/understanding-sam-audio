@@ -1,49 +1,60 @@
 # Build context: repo root (so we can install sam_audio + webrtc_server in one image)
 #
-# Why Ubuntu 24.04 + CUDA 12.4:
-#   - Ubuntu 22.04 ships FFmpeg 4 (libavutil.so.56); current torchcodec only
-#     supports FFmpeg 5-7, so it fails to load on 22.04.
+# Why Ubuntu 24.04 + CUDA 12.6:
+#   - Ubuntu 22.04 ships FFmpeg 4 (libavutil.so.56); torchcodec only
+#     supports FFmpeg 5+, so it fails to load on 22.04.
 #   - Ubuntu 24.04 ships FFmpeg 6 (libavutil.so.58) — supported by torchcodec.
-#   - nvidia/cuda:12.1 is deprecated; 12.4 is the current stable release.
+#   - The cu126 whl index ships torchcodec 0.3.0+ (first version with
+#     AudioDecoder). cu124 tops out at 0.2.1 which lacks AudioDecoder.
+#
+# Why uv instead of pip:
+#   - pip 24.x (Ubuntu 24.04 default) enforces sha256 hash verification for
+#     direct-URL Requires-Dist entries in wheel metadata. Multiple upstream
+#     packages (nvidia-cudnn-cu12, mpmath, yarl, …) have been replaced in-place
+#     at their pinned URLs, causing cascading hash failures across torch,
+#     audiobox_aesthetics, and every other package that pins them.
+#   - uv does not verify URL-fragment hashes during plain `pip install`-style
+#     operations (only when using a lockfile with --require-hashes). This is
+#     the same behaviour as pip < 22 and matches what the README assumes.
 FROM nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ── System deps ────────────────────────────────────────────────────────────
-# Ubuntu 24.04: python3 = 3.12, ffmpeg = 6.x (libavutil.so.58).
-# PEP 668 blocks system pip installs; --break-system-packages is correct
-# and safe inside an isolated Docker container.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-dev python3-pip curl git ffmpeg \
     && ln -sf /usr/bin/python3 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
+# uv equivalents: install into system Python and bypass PEP 668 protection
+ENV UV_SYSTEM_PYTHON=1
+ENV UV_BREAK_SYSTEM_PACKAGES=1
+
+# ── uv ─────────────────────────────────────────────────────────────────────
+RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
-# ── PyTorch with CUDA 12.4 ─────────────────────────────────────────────────
-RUN pip install --no-cache-dir \
+# ── PyTorch with CUDA 12.6 ─────────────────────────────────────────────────
+RUN uv pip install --no-cache \
     torch torchaudio torchvision \
-    --index-url https://download.pytorch.org/whl/cu124
+    --index-url https://download.pytorch.org/whl/cu126
 
-# ── torchcodec from PyPI ────────────────────────────────────────────────────
-# The cu124 index only carries an old torchcodec 0.1.x build that is missing
-# AudioDecoder. PyPI has the full 0.2.x+ API. Installed after torch so pip
-# resolves a wheel whose ABI matches the torch version already present.
-# Ubuntu 24.04 ships FFmpeg 6 (libavutil.so.58) which torchcodec 0.2+ supports.
-RUN pip install --no-cache-dir torchcodec
+# ── torchcodec (cu126 index → 0.3.0+, has AudioDecoder, matches torch ABI) ─
+RUN uv pip install --no-cache "torchcodec>=0.3" \
+    --index-url https://download.pytorch.org/whl/cu126
 
 # ── sam_audio package (repo root) ──────────────────────────────────────────
 COPY pyproject.toml .
 COPY sam_audio/ ./sam_audio/
-RUN pip install --no-cache-dir \
-    --extra-index-url https://download.pytorch.org/whl/cu124 \
+RUN uv pip install --no-cache \
+    --extra-index-url https://download.pytorch.org/whl/cu126 \
     .
 
 # ── webrtc_server package ──────────────────────────────────────────────────
 COPY webrtc-server/ ./webrtc-server/
-RUN pip install --no-cache-dir ./webrtc-server/
+RUN uv pip install --no-cache ./webrtc-server/
 
 # ── Runtime config ─────────────────────────────────────────────────────────
 ENV HF_HOME=/app/hf_cache
