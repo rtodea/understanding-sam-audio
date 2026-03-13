@@ -20,8 +20,9 @@ services:
 
   webrtc-server:
     volumes:
-      # Mount source and add its parent directory to PYTHONPATH so the dev
-      # server imports this code instead of the copy installed in dist-packages.
+      # Mount source trees and add their parent directories to PYTHONPATH so
+      # the dev server imports local code instead of the installed copies.
+      - ./sam_audio:/app/sam_audio:ro
       - ./webrtc-server/webrtc_server:/app/webrtc-server/webrtc_server:ro
       - hf-cache:/app/hf_cache
     working_dir: /app
@@ -34,4 +35,5 @@ services:
         --port 8000
         --workers 1
         --reload
+        --reload-dir /app/sam_audio
         --reload-dir /app/webrtc-server/webrtc_server

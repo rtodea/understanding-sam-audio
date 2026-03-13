@@ -89,9 +89,16 @@ async def websocket_separate(ws: WebSocket) -> None:
                     logger.warning("Skipping invalid buffered chunk shape=%s", tuple(chunk.shape))
                     continue
 
-                separated = await loop.run_in_executor(
-                    None, _separate, chunk, description
-                )
+                try:
+                    separated = await loop.run_in_executor(
+                        None, _separate, chunk, description
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to separate audio chunk shape=%s",
+                        tuple(chunk.shape),
+                    )
+                    continue
 
                 if prev_output is not None:
                     output  = crossfade(prev_output, separated, overlap_samples)

@@ -31,7 +31,18 @@ def batch_audio(
                 wav = torchaudio.functional.resample(wav, sr, audio_sampling_rate)
         else:
             wav = audio
-        wavs.append(wav.mean(0))
+
+        # File-based inputs are typically [channels, time], while the WebRTC
+        # path already provides mono tensors shaped [time]. Preserve mono 1D
+        # tensors instead of collapsing them to a scalar with mean(0).
+        if wav.ndim == 0:
+            raise ValueError("Audio tensor must have at least one dimension")
+        if wav.ndim == 1:
+            mono_wav = wav
+        else:
+            mono_wav = wav.mean(dim=0)
+
+        wavs.append(mono_wav.contiguous())
     sizes = torch.tensor([wav.size(-1) for wav in wavs])
     return pad_sequence(wavs, batch_first=True).unsqueeze(1), sizes
 
