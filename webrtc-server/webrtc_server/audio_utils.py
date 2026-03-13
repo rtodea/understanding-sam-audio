@@ -3,6 +3,7 @@ Pure audio utility functions — no I/O side effects, easy to unit-test.
 """
 
 import io
+import wave
 
 import torch
 import torchaudio
@@ -40,13 +41,26 @@ def decode_webm_chunk(raw: bytes, target_sr: int = 48_000) -> torch.Tensor:
 
 def encode_wav_chunk(tensor: torch.Tensor, sample_rate: int = 48_000) -> bytes:
     """
-    Encode a mono float32 tensor to WAV bytes.
+    Encode a mono PCM16 WAV chunk to bytes.
 
     Args:
         tensor: shape [T], float32, values in [-1, 1].
     """
     buf = io.BytesIO()
-    torchaudio.save(buf, tensor.unsqueeze(0).cpu().float(), sample_rate, format="wav")
+    pcm16 = (
+        tensor.detach()
+        .cpu()
+        .float()
+        .clamp(-1.0, 1.0)
+        .mul(32767.0)
+        .to(torch.int16)
+        .contiguous()
+    )
+    with wave.open(buf, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(pcm16.numpy().tobytes())
     return buf.getvalue()
 
 
