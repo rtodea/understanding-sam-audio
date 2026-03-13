@@ -70,7 +70,15 @@ docker compose -f webrtc-docker-compose.yml up --build
 
 Open **http://localhost:8080** in Chrome or Firefox.
 
-> First run downloads model weights (~9 GB for large). Subsequent starts load from the `hf-cache` Docker volume instantly.
+> **First run takes 3–10 minutes** — the server downloads model weights (~5 GB for base, ~9 GB for large) before it can accept connections. The log will show `Waiting for application startup.` and appear stuck during this time. That is normal. Once the download and GPU load finish you will see `Application startup complete.` and the browser will work.
+>
+> To watch the download progress while you wait:
+> ```bash
+> docker exec $(docker ps -qf name=webrtc-server) du -sh /app/hf_cache
+> ```
+> Run it every 30 seconds — the size should grow. If it stays at 0 bytes, check that `HF_TOKEN` is set correctly in `.env.webrtc`.
+>
+> Subsequent starts load from the `hf-cache` Docker volume instantly (no re-download).
 
 ### 3. Use the app
 
@@ -217,7 +225,7 @@ docker compose -f webrtc-docker-compose.yml down --volumes --remove-orphans \
 |---------|-------------|-----|
 | "This app requires Chrome or Firefox" | Safari / unsupported browser | Use Chrome ≥ 90 or Firefox ≥ 85 |
 | Blank video, no mic prompt | HTTPS required on some deployments | Use `localhost` (HTTP is allowed) or add TLS |
-| WebSocket error immediately | Server not ready / still loading model | Wait 10–30 s and retry; check `docker compose logs webrtc-server` |
+| WebSocket error / 502 immediately after startup | Server still downloading or loading model | Normal on first run — wait 3–10 min until logs show `Application startup complete.`; track progress with `docker exec $(docker ps -qf name=webrtc-server) du -sh /app/hf_cache` |
 | `CUDA out of memory` | VRAM exceeded | Set `SAM_MODEL=facebook/sam-audio-base` in `.env.webrtc` |
 | `401 Unauthorized` pulling model | HF_TOKEN missing or no access | Set token, request model access on HuggingFace |
 | Audio plays but sounds wrong | Wrong prompt | Try a more specific noun phrase, see [prompting-guide.md](./doc/prompting-guide.md) |
