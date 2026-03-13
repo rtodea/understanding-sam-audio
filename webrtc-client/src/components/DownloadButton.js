@@ -1,12 +1,16 @@
 /**
- * Assembles received PCM chunks into a single WAV file and offers a download link.
+ * Offers downloads for the separated WAV output and original captured media.
  * Shown only after the session stops.
  */
 export class DownloadButton {
   #root;
   #panel;
-  #link;
-  #currentUrl = null;
+  #separatedRow;
+  #originalRow;
+  #separatedLink;
+  #originalLink;
+  #separatedUrl = null;
+  #originalUrl = null;
 
   /** @param {HTMLElement} root */
   constructor(root) {
@@ -17,38 +21,69 @@ export class DownloadButton {
   #render() {
     this.#root.innerHTML = `
       <div class="download-panel" hidden>
-        <p class="download-label">Separated audio ready:</p>
-        <a id="dl-link" class="btn btn-download" download="separated.wav">
-          Download separated.wav
-        </a>
+        <div id="separated-row">
+          <p class="download-label">Separated audio ready:</p>
+          <a id="dl-separated" class="btn btn-download" download="separated.wav">
+            Download separated.wav
+          </a>
+        </div>
+        <div id="original-row">
+          <p class="download-label">Original recording ready:</p>
+          <a id="dl-original" class="btn btn-download" download="original.webm">
+            Download original
+          </a>
+        </div>
       </div>
     `;
     this.#panel = this.#root.querySelector('.download-panel');
-    this.#link  = this.#root.querySelector('#dl-link');
+    this.#separatedRow = this.#root.querySelector('#separated-row');
+    this.#originalRow = this.#root.querySelector('#original-row');
+    this.#separatedLink = this.#root.querySelector('#dl-separated');
+    this.#originalLink = this.#root.querySelector('#dl-original');
   }
 
   /**
-   * @param {Float32Array[]} decodedChunks  Mono PCM at 48 kHz
+   * @param {{ separatedChunks: Float32Array[], originalBlob: Blob | null }} media
    */
-  present(decodedChunks) {
-    if (decodedChunks.length === 0) return;
+  present({ separatedChunks, originalBlob }) {
+    this.#revokeUrls();
 
-    if (this.#currentUrl) {
-      URL.revokeObjectURL(this.#currentUrl);
+    const hasSeparated = separatedChunks.length > 0;
+    const hasOriginal = originalBlob instanceof Blob && originalBlob.size > 0;
+    if (!hasSeparated && !hasOriginal) return;
+
+    this.#separatedRow.hidden = !hasSeparated;
+    this.#originalRow.hidden = !hasOriginal;
+
+    if (hasSeparated) {
+      const wavBuffer = encodeWav(separatedChunks, 48000);
+      const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+      this.#separatedUrl = URL.createObjectURL(blob);
+      this.#separatedLink.href = this.#separatedUrl;
     }
 
-    const wavBuffer = encodeWav(decodedChunks, 48000);
-    const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-    this.#currentUrl = URL.createObjectURL(blob);
-    this.#link.href = this.#currentUrl;
+    if (hasOriginal) {
+      this.#originalUrl = URL.createObjectURL(originalBlob);
+      this.#originalLink.href = this.#originalUrl;
+      this.#originalLink.download = fileNameForBlob(originalBlob);
+    }
+
     this.#panel.hidden = false;
   }
 
   hide() {
     this.#panel.hidden = true;
-    if (this.#currentUrl) {
-      URL.revokeObjectURL(this.#currentUrl);
-      this.#currentUrl = null;
+    this.#revokeUrls();
+  }
+
+  #revokeUrls() {
+    if (this.#separatedUrl) {
+      URL.revokeObjectURL(this.#separatedUrl);
+      this.#separatedUrl = null;
+    }
+    if (this.#originalUrl) {
+      URL.revokeObjectURL(this.#originalUrl);
+      this.#originalUrl = null;
     }
   }
 }
@@ -103,4 +138,11 @@ function writeAscii(view, offset, str) {
   for (let i = 0; i < str.length; i++) {
     view.setUint8(offset + i, str.charCodeAt(i));
   }
+}
+
+function fileNameForBlob(blob) {
+  const type = blob.type || 'video/webm';
+  if (type.includes('mp4')) return 'original.mp4';
+  if (type.includes('ogg')) return 'original.ogv';
+  return 'original.webm';
 }

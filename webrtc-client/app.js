@@ -8,6 +8,7 @@ import { MediaCaptureService }  from './src/services/MediaCaptureService.js';
 import { WebSocketService }     from './src/services/WebSocketService.js';
 import { AudioRecorderService } from './src/services/AudioRecorderService.js';
 import { AudioPlaybackService } from './src/services/AudioPlaybackService.js';
+import { OriginalRecordingService } from './src/services/OriginalRecordingService.js';
 import { ControlPanel }         from './src/components/ControlPanel.js';
 import { VideoPreview }         from './src/components/VideoPreview.js';
 import { AudioVisualizer }      from './src/components/AudioVisualizer.js';
@@ -31,6 +32,8 @@ const mediaCapture = new MediaCaptureService();
 const wsService    = new WebSocketService();
 const recorder     = new AudioRecorderService();
 const playback     = new AudioPlaybackService();
+const originalRecording = new OriginalRecordingService();
+let originalRecordingPromise = null;
 
 // ── Components ─────────────────────────────────────────────────────────────
 
@@ -79,6 +82,10 @@ state.addEventListener('session:start', async () => {
   videoPreview.attachStream(stream);
   playback.init();
   visualizer.attach(playback.getAnalyserNode());
+  originalRecordingPromise = null;
+  if (OriginalRecordingService.isSupported()) {
+    originalRecording.start(stream);
+  }
 
   wsService.addEventListener('open', () => {
     const audioOnlyStream = new MediaStream(stream.getAudioTracks());
@@ -115,6 +122,7 @@ function teardownSession() {
   state.setStatus('stopping');
 
   recorder.stop();
+  originalRecordingPromise = originalRecording.stop();
   mediaCapture.stop();
   videoPreview.detach();
   visualizer.detach();
@@ -125,13 +133,21 @@ async function finalizeSession() {
   if (state.status === 'idle') return;
 
   recorder.stop();
+  if (!originalRecordingPromise) {
+    originalRecordingPromise = originalRecording.stop();
+  }
   mediaCapture.stop();
   videoPreview.detach();
   visualizer.detach();
   wsService.disconnect();
 
   await playback.drain();
-  downloadBtn.present(playback.getDecodedChunks());
+  const originalBlob = await originalRecordingPromise;
+  originalRecordingPromise = null;
+  downloadBtn.present({
+    separatedChunks: playback.getDecodedChunks(),
+    originalBlob,
+  });
   playback.reset();
 
   state.setStatus('idle');
