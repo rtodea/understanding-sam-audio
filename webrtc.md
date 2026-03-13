@@ -70,15 +70,51 @@ docker compose -f webrtc-docker-compose.yml up --build
 
 Open **http://localhost:8080** in Chrome or Firefox.
 
-> **First run takes 3–10 minutes** — the server downloads model weights (~5 GB for base, ~9 GB for large) before it can accept connections. The log will show `Waiting for application startup.` and appear stuck during this time. That is normal. Once the download and GPU load finish you will see `Application startup complete.` and the browser will work.
+> ### First cold start — expect a long wait
 >
-> To watch the download progress while you wait:
+> On the very first run the server downloads **~28 GB of model weights** before it can accept any connection. This happens because SAM-Audio is a pipeline of several independently hosted sub-models that are fetched on demand:
+>
+> | Sub-model | What it does | Approx. size |
+> |-----------|-------------|-------------|
+> | `facebook/sam-audio-base` | Main separation model | ~4 GB |
+> | `facebook/sam-audio-judge` | Text-based re-ranking | ~3 GB |
+> | `pe-av-large` | Vision encoder | ~5 GB |
+> | `pe-a-frame-large` | Span predictor | ~4 GB |
+> | T5, RoBERTa, ModernBERT | Text encoders | ~2 GB |
+> | *(other dependencies)* | | ~10 GB |
+>
+> **Total: ~28 GB**, downloaded sequentially. On a typical 100 Mbps connection this takes **30–60 minutes**. The log will show `Waiting for application startup.` and appear completely stuck — that is normal. Each sub-model prints a progress bar when it starts downloading, so you will see bursts of output followed by silence.
+>
+> The full startup sequence looks like this — use it to track where you are:
+> ```
+> Waiting for application startup.         ← downloads start here, can take 30–60 min
+> [registry] Processor loaded. Loading model weights …
+> [base] SAMAudio: building model architecture …
+> [model] building audio_codec …
+> [model] building text_encoder …
+> [model] building vision_encoder …
+> [model] building transformer …
+> [model] building visual_ranker …
+> [model] building text_ranker …          ← downloads facebook/sam-audio-judge (~3 GB)
+> [model] text_ranker done.
+> [model] building span_predictor …       ← downloads pe-a-frame-large (~4 GB)
+> [model] span_predictor done.
+> [model] __init__ complete.
+> [base] SAMAudio: loading checkpoint from … ← reads main checkpoint from disk
+> [base] SAMAudio: done.
+> [registry] Model loaded to CPU RAM. Moving to cuda …
+> [registry] Converting to fp16 …
+> [registry] .cuda() complete.
+> Application startup complete.            ← browser works now
+> ```
+>
+> To watch the cache grow while you wait:
 > ```bash
 > docker exec $(docker ps -qf name=webrtc-server) du -sh /app/hf_cache
 > ```
-> Run it every 30 seconds — the size should grow. If it stays at 0 bytes, check that `HF_TOKEN` is set correctly in `.env.webrtc`.
+> The number should increase every minute or so. If it stays at 0 B, check that `HF_TOKEN` is set correctly in `.env.webrtc`.
 >
-> Subsequent starts load from the `hf-cache` Docker volume instantly (no re-download).
+> **All downloads are saved to the `hf-cache` Docker volume.** Subsequent `docker compose up` calls skip all downloads and reach `Application startup complete.` in 2–4 minutes (just GPU load time). The volume survives image rebuilds — you only pay the 28 GB cost once.
 
 ### 3. Use the app
 
@@ -164,7 +200,7 @@ Run these steps in order to leave your machine exactly as it was before.
 docker compose -f webrtc-docker-compose.yml down --volumes --remove-orphans
 ```
 
-`--volumes` removes the `hf-cache` named volume (model weights, ~9–15 GB).
+`--volumes` removes the `hf-cache` named volume (model weights, ~28 GB).
 `--remove-orphans` removes any leftover containers from previous runs.
 
 ### 2. Remove the built images
@@ -225,7 +261,7 @@ docker compose -f webrtc-docker-compose.yml down --volumes --remove-orphans \
 |---------|-------------|-----|
 | "This app requires Chrome or Firefox" | Safari / unsupported browser | Use Chrome ≥ 90 or Firefox ≥ 85 |
 | Blank video, no mic prompt | HTTPS required on some deployments | Use `localhost` (HTTP is allowed) or add TLS |
-| WebSocket error / 502 immediately after startup | Server still downloading or loading model | Normal on first run — wait 3–10 min until logs show `Application startup complete.`; track progress with `docker exec $(docker ps -qf name=webrtc-server) du -sh /app/hf_cache` |
+| WebSocket error / 502 immediately after startup | Server still downloading or loading model | Normal on first run — can take 30–60 min while ~28 GB of sub-models download. Watch the logs for the startup sequence and track cache growth with `docker exec $(docker ps -qf name=webrtc-server) du -sh /app/hf_cache` |
 | `CUDA out of memory` | VRAM exceeded | Set `SAM_MODEL=facebook/sam-audio-base` in `.env.webrtc` |
 | `401 Unauthorized` pulling model | HF_TOKEN missing or no access | Set token, request model access on HuggingFace |
 | Audio plays but sounds wrong | Wrong prompt | Try a more specific noun phrase, see [prompting-guide.md](./doc/prompting-guide.md) |
