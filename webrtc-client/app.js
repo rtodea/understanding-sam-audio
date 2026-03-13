@@ -70,10 +70,8 @@ state.addEventListener('session:start', async () => {
   playback.init();
   visualizer.attach(playback.getAnalyserNode());
 
-  wsService.connect(wsUrl);
-
   recorder.addEventListener('chunk', (e) => {
-    wsService.sendBinary(e.data);
+    wsService.sendBinary(e.detail);
   });
 
   wsService.addEventListener('open', () => {
@@ -96,6 +94,9 @@ state.addEventListener('session:start', async () => {
   wsService.addEventListener('close', () => {
     if (state.status !== 'idle') teardownSession();
   }, { once: true });
+
+  // Connect AFTER attaching listeners to avoid missing 'open' on fast connections
+  wsService.connect(wsUrl);
 });
 
 // ── Session stop ───────────────────────────────────────────────────────────

@@ -27,7 +27,7 @@ export class AudioRecorderService extends EventTarget {
     this.#recorder.ondataavailable = async (e) => {
       if (e.data.size > 0) {
         const buffer = await e.data.arrayBuffer();
-        this.dispatchEvent(new MessageEvent('chunk', { data: buffer }));
+        this.dispatchEvent(new CustomEvent('chunk', { detail: buffer }));
       }
     };
 
