@@ -54,16 +54,16 @@ class BaseModel(torch.nn.Module, ModelHubMixin):
                 config[key] = value
 
         config = cls.config_cls(**config)
-        logger.info("%s: building model architecture …", cls.__name__)
+        print(f"[base] {cls.__name__}: building model architecture …", flush=True)
         model = cls(config)
         ckpt_path = os.path.join(cached_model_dir, "checkpoint.pt")
-        logger.info("%s: loading checkpoint from %s …", cls.__name__, ckpt_path)
+        print(f"[base] {cls.__name__}: loading checkpoint from {ckpt_path} …", flush=True)
         state_dict = torch.load(
             ckpt_path,
             weights_only=True,
             map_location=map_location,
         )
-        logger.info("%s: applying state_dict …", cls.__name__)
+        print(f"[base] {cls.__name__}: applying state_dict …", flush=True)
         model.load_state_dict(state_dict, strict=strict)
-        logger.info("%s: done.", cls.__name__)
+        print(f"[base] {cls.__name__}: done.", flush=True)
         return model
