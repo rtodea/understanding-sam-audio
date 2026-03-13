@@ -49,10 +49,17 @@ RUN uv pip install --no-cache "torchcodec>=0.3" \
 # imagebind_model.py unconditionally loads from .checkpoints/imagebind_huge.pth
 # relative to CWD at runtime. Downloading at build time avoids a slow and
 # failure-prone 2 GB fetch on every fresh container start.
-RUN mkdir -p /app/.checkpoints \
-    && curl -fL --retry 5 --retry-delay 10 --retry-max-time 600 \
-       -o /app/.checkpoints/imagebind_huge.pth \
-       https://dl.fbaipublicfiles.com/imagebind/imagebind_huge.pth
+#
+# --mount=type=cache keeps the file in BuildKit's persistent cache so it is
+# downloaded exactly once across ALL builds, even when earlier layers change.
+RUN --mount=type=cache,target=/buildcache/imagebind \
+    mkdir -p /app/.checkpoints /buildcache/imagebind \
+    && if [ ! -f /buildcache/imagebind/imagebind_huge.pth ]; then \
+         curl -fL --retry 5 --retry-delay 10 --retry-max-time 600 \
+              -o /buildcache/imagebind/imagebind_huge.pth \
+              https://dl.fbaipublicfiles.com/imagebind/imagebind_huge.pth; \
+       fi \
+    && cp /buildcache/imagebind/imagebind_huge.pth /app/.checkpoints/imagebind_huge.pth
 
 # ── sam_audio package (repo root) ──────────────────────────────────────────
 # Two-stage install so that changing sam_audio source code does not
