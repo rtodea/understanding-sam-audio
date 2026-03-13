@@ -45,7 +45,17 @@ def _separate(
             predict_spans=settings.predict_spans,
             reranking_candidates=settings.sam_reranking_candidates,
         )
-    return result.target.squeeze(0).cpu()
+
+    target = result.target
+    if isinstance(target, list):
+        if not target:
+            raise ValueError("Model returned an empty target list")
+        target = target[0]
+
+    if not isinstance(target, torch.Tensor):
+        raise TypeError(f"Unexpected target type: {type(target)!r}")
+
+    return target.detach().float().reshape(-1).cpu()
 
 
 @router.websocket("/ws/separate")
