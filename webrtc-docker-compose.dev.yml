@@ -20,9 +20,13 @@ services:
 
   webrtc-server:
     volumes:
-      # Mount source on top of the installed package so edits are picked up.
+      # Mount source and add its parent directory to PYTHONPATH so the dev
+      # server imports this code instead of the copy installed in dist-packages.
       - ./webrtc-server/webrtc_server:/app/webrtc-server/webrtc_server:ro
       - hf-cache:/app/hf_cache
+    working_dir: /app
+    environment:
+      PYTHONPATH: /app/webrtc-server:/app
     # --reload watches the mounted source directory.
     command: >
       uvicorn webrtc_server.main:app
