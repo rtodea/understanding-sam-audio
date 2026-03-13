@@ -46,11 +46,21 @@ RUN uv pip install --no-cache "torchcodec>=0.3" \
     --index-url https://download.pytorch.org/whl/cu126
 
 # ── sam_audio package (repo root) ──────────────────────────────────────────
+# Two-stage install so that changing sam_audio source code does not
+# re-download the heavy git dependencies (dacvae, imagebind, etc.).
+#
+# Stage A: install all dependencies from pyproject.toml alone.
+# A stub __init__.py lets setuptools discover the package without real source.
 COPY pyproject.toml .
-COPY sam_audio/ ./sam_audio/
+RUN mkdir -p sam_audio && touch sam_audio/__init__.py
 RUN uv pip install --no-cache \
     --extra-index-url https://download.pytorch.org/whl/cu126 \
     .
+
+# Stage B: overwrite stub with real source, reinstall package only (no deps).
+# This layer is the only one that re-runs when Python files change.
+COPY sam_audio/ ./sam_audio/
+RUN uv pip install --no-cache --no-deps .
 
 # ── webrtc_server package ──────────────────────────────────────────────────
 COPY webrtc-server/ ./webrtc-server/
