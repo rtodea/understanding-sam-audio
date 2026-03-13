@@ -3,7 +3,7 @@ WebSocket handler — orchestration only, no business logic.
 
 Receives:
   1. One JSON text frame:  {"description": "person speaking"}
-  2. N binary frames:      WebM/Opus audio chunks from MediaRecorder
+  2. N binary frames:      raw PCM float32 frames or legacy WebM/Opus chunks
 
 Sends:
   N binary frames: WAV audio chunks (separated target audio)
@@ -15,7 +15,12 @@ import logging
 import torch
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from .audio_utils import crossfade, decode_webm_chunk, encode_wav_chunk
+from .audio_utils import (
+    crossfade,
+    decode_pcm_chunk,
+    decode_webm_chunk,
+    encode_wav_chunk,
+)
 from .config import settings
 from .model_registry import get_model
 from .overlap_buffer import OverlapBuffer
@@ -72,7 +77,14 @@ async def websocket_separate(ws: WebSocket) -> None:
         # ── Handshake ────────────────────────────────────────────────────────
         config      = await ws.receive_json()
         description = config.get("description", "person speaking")
-        logger.info("Session opened — description=%r", description)
+        encoding = config.get("encoding", "webm_opus")
+        source_sample_rate = int(config.get("sampleRate", settings.sample_rate))
+        logger.info(
+            "Session opened — description=%r encoding=%s sample_rate=%d",
+            description,
+            encoding,
+            source_sample_rate,
+        )
 
         # ── Streaming loop ───────────────────────────────────────────────────
         while True:
@@ -83,14 +95,33 @@ async def websocket_separate(ws: WebSocket) -> None:
                 continue
 
             try:
-                pcm = await loop.run_in_executor(None, decode_webm_chunk, raw)
+                if encoding == "pcm_f32le":
+                    pcm = await loop.run_in_executor(
+                        None,
+                        decode_pcm_chunk,
+                        raw,
+                        source_sample_rate,
+                        settings.sample_rate,
+                    )
+                else:
+                    pcm = await loop.run_in_executor(
+                        None,
+                        decode_webm_chunk,
+                        raw,
+                        settings.sample_rate,
+                    )
             except Exception:
-                logger.exception("Failed to decode audio frame (bytes=%d)", len(raw))
+                logger.exception(
+                    "Failed to decode audio frame (encoding=%s bytes=%d)",
+                    encoding,
+                    len(raw),
+                )
                 continue
 
             if pcm.ndim != 1 or pcm.numel() == 0:
                 logger.warning(
-                    "Skipping invalid decoded audio frame (bytes=%d, shape=%s)",
+                    "Skipping invalid decoded audio frame (encoding=%s bytes=%d, shape=%s)",
+                    encoding,
                     len(raw),
                     tuple(pcm.shape),
                 )

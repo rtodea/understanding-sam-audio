@@ -18,8 +18,8 @@ import { DownloadButton }       from './src/components/DownloadButton.js';
 if (!AudioRecorderService.isSupported()) {
   document.getElementById('app').innerHTML = `
     <p style="color:#f87171;padding:2rem;font-size:1.1rem;">
-      This app requires <strong>Chrome</strong> or <strong>Firefox</strong>
-      (audio/webm;codecs=opus is not supported in this browser).
+      This app requires a browser with <strong>Web Audio</strong> and
+      <strong>getUserMedia</strong> support.
     </p>`;
   throw new Error('Unsupported browser');
 }
@@ -51,6 +51,16 @@ const downloadBtn  = new DownloadButton(
 
 const wsUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/ws/separate`;
 
+recorder.addEventListener('chunk', (e) => {
+  wsService.sendBinary(e.detail);
+});
+
+wsService.addEventListener('message', async (e) => {
+  if (e.data instanceof ArrayBuffer) {
+    await playback.enqueue(e.data);
+  }
+});
+
 // ── Session start ──────────────────────────────────────────────────────────
 
 state.addEventListener('session:start', async () => {
@@ -70,25 +80,16 @@ state.addEventListener('session:start', async () => {
   playback.init();
   visualizer.attach(playback.getAnalyserNode());
 
-  recorder.addEventListener('chunk', (e) => {
-    wsService.sendBinary(e.detail);
-  });
-
   wsService.addEventListener('open', () => {
-    wsService.sendJson({ description: state.description });
-    // Some browsers are stricter about MediaRecorder mime types when the stream
-    // contains both audio and video tracks. Record audio only to avoid
-    // NotSupportedError while still keeping video for the preview element.
     const audioOnlyStream = new MediaStream(stream.getAudioTracks());
-    recorder.start(audioOnlyStream, 3000);
+    recorder.start(audioOnlyStream, 250);
+    wsService.sendJson({
+      description: state.description,
+      encoding: 'pcm_f32le',
+      sampleRate: recorder.sampleRate,
+    });
     state.setStatus('active');
   }, { once: true });
-
-  wsService.addEventListener('message', async (e) => {
-    if (e.data instanceof ArrayBuffer) {
-      await playback.enqueue(e.data);
-    }
-  });
 
   wsService.addEventListener('error', () => {
     state.setError('WebSocket connection error — is the server running?');

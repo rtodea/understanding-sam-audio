@@ -9,6 +9,31 @@ import torch
 import torchaudio
 
 
+def decode_pcm_chunk(
+    raw: bytes,
+    source_sr: int = 48_000,
+    target_sr: int = 48_000,
+) -> torch.Tensor:
+    """
+    Decode little-endian float32 PCM bytes to a mono tensor at target_sr.
+    """
+    if not raw:
+        return torch.zeros(0, dtype=torch.float32)
+    if len(raw) % 4 != 0:
+        raise ValueError(f"PCM payload has invalid byte length: {len(raw)}")
+    if source_sr <= 0 or target_sr <= 0:
+        raise ValueError("Sample rates must be positive integers")
+
+    waveform = torch.frombuffer(bytearray(raw), dtype=torch.float32).clone()
+    if waveform.numel() == 0:
+        return torch.zeros(0, dtype=torch.float32)
+    if source_sr != target_sr:
+        waveform = torchaudio.functional.resample(
+            waveform.unsqueeze(0), source_sr, target_sr
+        ).squeeze(0)
+    return waveform.contiguous().float()
+
+
 def decode_webm_chunk(raw: bytes, target_sr: int = 48_000) -> torch.Tensor:
     """
     Decode a WebM/Opus binary blob to a mono float32 tensor at target_sr.
