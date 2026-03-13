@@ -64,10 +64,31 @@ async def websocket_separate(ws: WebSocket) -> None:
         while True:
             raw = await ws.receive_bytes()
 
-            pcm    = await loop.run_in_executor(None, decode_webm_chunk, raw)
+            if not raw:
+                logger.warning("Skipping empty websocket audio frame")
+                continue
+
+            try:
+                pcm = await loop.run_in_executor(None, decode_webm_chunk, raw)
+            except Exception:
+                logger.exception("Failed to decode audio frame (bytes=%d)", len(raw))
+                continue
+
+            if pcm.ndim != 1 or pcm.numel() == 0:
+                logger.warning(
+                    "Skipping invalid decoded audio frame (bytes=%d, shape=%s)",
+                    len(raw),
+                    tuple(pcm.shape),
+                )
+                continue
+
             chunks = buf.push(pcm)
 
             for chunk in chunks:
+                if chunk.ndim != 1 or chunk.numel() == 0:
+                    logger.warning("Skipping invalid buffered chunk shape=%s", tuple(chunk.shape))
+                    continue
+
                 separated = await loop.run_in_executor(
                     None, _separate, chunk, description
                 )
