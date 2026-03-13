@@ -78,9 +78,13 @@ class SAMAudio(BaseModel):
 
     def __init__(self, cfg: SAMAudioConfig):
         super().__init__()
+        print("[model] building audio_codec …", flush=True)
         self.audio_codec = DACVAE(cfg.audio_codec)
+        print("[model] building text_encoder …", flush=True)
         self.text_encoder = T5TextEncoder(cfg.text_encoder)
+        print("[model] building vision_encoder …", flush=True)
         self.vision_encoder = PerceptionEncoder(cfg.vision_encoder)
+        print("[model] building transformer …", flush=True)
         self.transformer = DiT(cfg.transformer)
         self.proj = torch.nn.Linear(cfg.in_channels, cfg.transformer.dim)
         self.align_masked_video = AlignModalities(
@@ -91,15 +95,21 @@ class SAMAudio(BaseModel):
         )
         self.memory_proj = torch.nn.Linear(cfg.text_encoder.dim, cfg.transformer.dim)
         self.timestep_emb = SinusoidalEmbedding(cfg.transformer.dim)
+        print("[model] building visual_ranker …", flush=True)
         self.visual_ranker = create_ranker(cfg.visual_ranker)
+        print("[model] building text_ranker …", flush=True)
         self.text_ranker = create_ranker(cfg.text_ranker)
+        print("[model] text_ranker done.", flush=True)
         if cfg.span_predictor is not None:
+            print("[model] building span_predictor …", flush=True)
             self.span_predictor = PEAudioFrame.from_config(
                 cfg.span_predictor, pretrained=True
             )
             self.span_predictor_transform = PEAudioFrameTransform.from_config(
                 cfg.span_predictor
             )
+            print("[model] span_predictor done.", flush=True)
+        print("[model] __init__ complete.", flush=True)
 
     @property
     def sample_rate(self):
