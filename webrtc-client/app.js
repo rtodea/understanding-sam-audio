@@ -76,7 +76,11 @@ state.addEventListener('session:start', async () => {
 
   wsService.addEventListener('open', () => {
     wsService.sendJson({ description: state.description });
-    recorder.start(stream, 3000);
+    // Some browsers are stricter about MediaRecorder mime types when the stream
+    // contains both audio and video tracks. Record audio only to avoid
+    // NotSupportedError while still keeping video for the preview element.
+    const audioOnlyStream = new MediaStream(stream.getAudioTracks());
+    recorder.start(audioOnlyStream, 3000);
     state.setStatus('active');
   }, { once: true });
 
