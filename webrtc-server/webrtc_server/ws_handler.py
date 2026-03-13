@@ -35,6 +35,10 @@ def _separate(
     model, processor = get_model()
     device = settings.effective_device
     batch = processor(audios=[chunk], descriptions=[description]).to(device)
+    if device == "cuda":
+        # The model is converted to fp16 during CUDA startup, so keep the audio
+        # tensor dtype aligned with the model weights.
+        batch.audios = batch.audios.half()
     with torch.inference_mode():
         result = model.separate(
             batch,
