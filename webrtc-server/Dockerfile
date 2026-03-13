@@ -62,6 +62,14 @@ RUN uv pip install --no-cache \
 COPY sam_audio/ ./sam_audio/
 RUN uv pip install --no-cache --no-deps .
 
+# ── ImageBind checkpoint ────────────────────────────────────────────────────
+# imagebind_model.py unconditionally loads from .checkpoints/imagebind_huge.pth
+# relative to CWD at runtime. Downloading at build time avoids a slow and
+# failure-prone 2 GB fetch on every fresh container start.
+RUN mkdir -p /app/.checkpoints \
+    && curl -fsSL -o /app/.checkpoints/imagebind_huge.pth \
+       https://dl.fbaipublicfiles.com/imagebind/imagebind_huge.pth
+
 # ── webrtc_server package ──────────────────────────────────────────────────
 COPY webrtc-server/ ./webrtc-server/
 RUN uv pip install --no-cache ./webrtc-server/

@@ -33,4 +33,4 @@ services:
               capabilities: [gpu]
 
 volumes:
-  hf-cache:       # persists model weights across container restarts (~5–15 GB)
+  hf-cache:    # HuggingFace models — sam-audio + pe-av-large (~7–15 GB)
