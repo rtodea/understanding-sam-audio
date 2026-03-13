@@ -72,6 +72,10 @@ state.addEventListener('session:start', async () => {
 
   wsService.connect(wsUrl);
 
+  recorder.addEventListener('chunk', (e) => {
+    wsService.sendBinary(e.data);
+  });
+
   wsService.addEventListener('open', () => {
     wsService.sendJson({ description: state.description });
     recorder.start(stream, 3000);

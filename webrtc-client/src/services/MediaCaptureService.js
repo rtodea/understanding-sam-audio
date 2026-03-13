@@ -11,7 +11,6 @@ export class MediaCaptureService {
   async start() {
     this.#stream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        sampleRate: 48000,
         channelCount: 1,
         echoCancellation: false,
         noiseSuppression: false,
