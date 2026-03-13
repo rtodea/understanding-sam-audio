@@ -2,6 +2,7 @@
 Pure audio utility functions — no I/O side effects, easy to unit-test.
 """
 
+import io
 import wave
 
 import torch
