@@ -40,17 +40,8 @@ export class AudioPlaybackService {
       // Keep a copy of the PCM for the download encoder.
       this.#decodedChunks.push(audioBuffer.getChannelData(0).slice());
 
-      // Schedule playback with a small look-ahead to avoid gaps.
-      const source = this.#ctx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(this.#analyser);
-
-      const now = this.#ctx.currentTime;
-      if (this.#nextPlayTime < now) {
-        this.#nextPlayTime = now + 0.05;
-      }
-      source.start(this.#nextPlayTime);
-      this.#nextPlayTime += audioBuffer.duration;
+      // Playback muted — log chunk arrival for latency tracking.
+      console.debug(`[AudioPlaybackService] chunk received: ${audioBuffer.duration.toFixed(3)}s (total chunks: ${this.#decodedChunks.length})`);
     });
 
     return this.#pendingDecode;

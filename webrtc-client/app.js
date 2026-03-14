@@ -37,6 +37,52 @@ let originalRecordingPromise = null;
 
 // ── Components ─────────────────────────────────────────────────────────────
 
+const chunkStatsContainer = document.getElementById('chunk-stats-container');
+
+// ── Chunk latency tracking ──────────────────────────────────────────────────
+
+const ADVANCE_SECONDS = 1.5;   // server advance window — our "real-time" target
+const INTERVAL_HISTORY = 10;   // rolling average window
+
+let chunkCount = 0;
+let lastChunkAt = null;
+const recentIntervals = [];
+
+function resetChunkStats() {
+  chunkCount = 0;
+  lastChunkAt = null;
+  recentIntervals.length = 0;
+  chunkStatsContainer.innerHTML = '';
+}
+
+function recordChunk() {
+  const now = performance.now();
+  chunkCount++;
+
+  if (lastChunkAt !== null) {
+    const interval = (now - lastChunkAt) / 1000;
+    recentIntervals.push(interval);
+    if (recentIntervals.length > INTERVAL_HISTORY) recentIntervals.shift();
+  }
+  lastChunkAt = now;
+
+  const last = recentIntervals.at(-1);
+  const avg  = recentIntervals.length
+    ? recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length
+    : null;
+
+  const fmt  = (s) => s.toFixed(2) + 's';
+  const cls  = (s) => s <= ADVANCE_SECONDS ? 'stat-fast' : 'stat-slow';
+
+  chunkStatsContainer.innerHTML = `
+    <div class="chunk-stats">
+      <span>chunks: <span class="stat-value">${chunkCount}</span></span>
+      ${last != null ? `<span>last interval: <span class="stat-value ${cls(last)}">${fmt(last)}</span></span>` : ''}
+      ${avg != null ? `<span>avg interval: <span class="stat-value ${cls(avg)}">${fmt(avg)}</span></span>` : ''}
+      <span>target: <span class="stat-value">${ADVANCE_SECONDS}s</span></span>
+    </div>`;
+}
+
 const controlPanel = new ControlPanel(
   document.getElementById('control-panel-container'), state
 );
@@ -60,6 +106,7 @@ recorder.addEventListener('chunk', (e) => {
 
 wsService.addEventListener('message', async (e) => {
   if (e.data instanceof ArrayBuffer) {
+    recordChunk();
     await playback.enqueue(e.data);
   }
 });
@@ -81,7 +128,7 @@ state.addEventListener('session:start', async () => {
 
   videoPreview.attachStream(stream);
   playback.init();
-  visualizer.attach(playback.getAnalyserNode());
+  resetChunkStats();
   originalRecordingPromise = null;
   if (OriginalRecordingService.isSupported()) {
     originalRecording.start(stream);
@@ -90,6 +137,7 @@ state.addEventListener('session:start', async () => {
   wsService.addEventListener('open', () => {
     const audioOnlyStream = new MediaStream(stream.getAudioTracks());
     recorder.start(audioOnlyStream, 250);
+    visualizer.attach(recorder.getAnalyserNode());
     wsService.sendJson({
       description: state.description,
       encoding: 'pcm_f32le',

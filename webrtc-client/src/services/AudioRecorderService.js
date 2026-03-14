@@ -9,6 +9,7 @@ export class AudioRecorderService extends EventTarget {
   #source = null;
   #processor = null;
   #sink = null;
+  #analyser = null;
   #flushTimer = null;
   #pendingBuffers = [];
   #pendingSamples = 0;
@@ -22,6 +23,9 @@ export class AudioRecorderService extends EventTarget {
   get sampleRate() {
     return this.#sampleRate;
   }
+
+  /** @returns {AnalyserNode | null} */
+  getAnalyserNode() { return this.#analyser; }
 
   /**
    * @param {MediaStream} stream
@@ -37,6 +41,9 @@ export class AudioRecorderService extends EventTarget {
     this.#sampleRate = this.#context.sampleRate;
 
     this.#source = this.#context.createMediaStreamSource(stream);
+    this.#analyser = this.#context.createAnalyser();
+    this.#analyser.fftSize = 256;
+    this.#source.connect(this.#analyser);
     this.#processor = this.#context.createScriptProcessor(4096, 1, 1);
     this.#sink = this.#context.createGain();
     this.#sink.gain.value = 0;
@@ -70,9 +77,11 @@ export class AudioRecorderService extends EventTarget {
     }
 
     this.#processor?.disconnect();
+    this.#analyser?.disconnect();
     this.#source?.disconnect();
     this.#sink?.disconnect();
     this.#processor = null;
+    this.#analyser = null;
     this.#source = null;
     this.#sink = null;
 

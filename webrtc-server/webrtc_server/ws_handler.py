@@ -7,6 +7,15 @@ Receives:
 
 Sends:
   N binary frames: WAV audio chunks (separated target audio)
+
+Overlap-add assembly:
+  Each input chunk advances by `advance_samples`.  After separation we emit
+  exactly `advance_samples` per step:
+    - First chunk: emit separated[:advance_samples] (no prior context to blend).
+    - Subsequent: crossfade the stored tail of the previous output with the
+      overlap prefix of the current output, emit the blended region.
+  This guarantees each real-time sample appears in the output exactly once,
+  with a smooth fade at chunk boundaries.
 """
 
 import asyncio
@@ -63,33 +72,80 @@ def _separate(
     return target.detach().float().reshape(-1).cpu()
 
 
+def _blend_and_advance(
+    prev_tail: torch.Tensor | None,
+    separated: torch.Tensor,
+    overlap_samples: int,
+    advance_samples: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Return (to_send, new_tail).
+
+    to_send is exactly `advance_samples` of non-duplicated output:
+      - First chunk (prev_tail is None): the leading advance_samples of `separated`.
+      - Subsequent chunks: crossfade of prev_tail with separated[:overlap_samples],
+        giving a smooth blend over the shared overlap region.
+
+    new_tail is the last `overlap_samples` of `separated`, retained for the
+    next call.
+    """
+    if prev_tail is not None:
+        # crossfade(prev_tail, separated, overlap) with len(prev_tail)==overlap_samples:
+        #   prev[:-overlap] is empty  →  output = blended + separated[overlap:]
+        # We take only the blended portion (= advance_samples when advance==overlap).
+        output  = crossfade(prev_tail, separated, overlap_samples)
+        to_send = output[:advance_samples]
+    else:
+        to_send = separated[:advance_samples]
+
+    new_tail = separated[advance_samples:]
+    return to_send, new_tail
+
+
 async def _flush_tail(
     *,
     ws: WebSocket,
     buf: OverlapBuffer,
-    prev_output: torch.Tensor | None,
+    prev_tail: torch.Tensor | None,
     chunk_samples: int,
     overlap_samples: int,
+    advance_samples: int,
     description: str,
     loop: asyncio.AbstractEventLoop,
-) -> torch.Tensor | None:
+) -> None:
+    """Drain the overlap buffer and send any remaining audio to the client."""
     tail = buf.flush()
-    if tail is None or tail.numel() <= overlap_samples:
-        return prev_output
 
-    padded = torch.nn.functional.pad(tail, (0, max(0, chunk_samples - tail.numel())))
-    padded = padded[:chunk_samples]
+    if tail is None or tail.numel() == 0:
+        # No buffered input; emit the stored tail from the last separation.
+        if prev_tail is not None and prev_tail.numel() > 0:
+            await ws.send_bytes(encode_wav_chunk(prev_tail, settings.sample_rate))
+        return
+
+    actual_samples = tail.numel()
+    remaining_new  = actual_samples - overlap_samples
+
+    if remaining_new <= 0:
+        # The buffer only holds the retained overlap — nothing new to separate.
+        if prev_tail is not None and prev_tail.numel() > 0:
+            await ws.send_bytes(encode_wav_chunk(prev_tail, settings.sample_rate))
+        return
+
+    # Pad to chunk_samples and run SAM.
+    padded   = torch.nn.functional.pad(tail, (0, max(0, chunk_samples - actual_samples)))[:chunk_samples]
     separated = await loop.run_in_executor(None, _separate, padded, description)
-    if prev_output is not None:
-        output = crossfade(prev_output, separated, overlap_samples)
-        to_send = output[:-overlap_samples]
+
+    if prev_tail is not None:
+        output = crossfade(prev_tail, separated, overlap_samples)
+        blend  = output[:overlap_samples]
+        # Emit blend + actual new samples (exclude zero-padded region).
+        new_part = separated[overlap_samples:actual_samples]
+        to_send  = torch.cat([blend, new_part]) if new_part.numel() > 0 else blend
     else:
-        to_send = separated[overlap_samples:]
+        to_send = separated[:actual_samples]
 
     if to_send.numel() > 0:
-        wav_bytes = encode_wav_chunk(to_send, settings.sample_rate)
-        await ws.send_bytes(wav_bytes)
-    return separated
+        await ws.send_bytes(encode_wav_chunk(to_send, settings.sample_rate))
 
 
 @router.websocket("/ws/separate")
@@ -98,8 +154,9 @@ async def websocket_separate(ws: WebSocket) -> None:
 
     chunk_samples   = int(settings.chunk_seconds * settings.sample_rate)
     overlap_samples = int(settings.overlap_seconds * settings.sample_rate)
+    advance_samples = chunk_samples - overlap_samples
     buf             = OverlapBuffer(chunk_samples, overlap_samples)
-    prev_output: torch.Tensor | None = None
+    prev_tail: torch.Tensor | None = None
     loop = asyncio.get_event_loop()
 
     try:
@@ -132,12 +189,13 @@ async def websocket_separate(ws: WebSocket) -> None:
                         logger.warning("Ignoring invalid text frame: %r", control[:80])
                         continue
                     if payload.get("event") == "stop":
-                        prev_output = await _flush_tail(
+                        await _flush_tail(
                             ws=ws,
                             buf=buf,
-                            prev_output=prev_output,
+                            prev_tail=prev_tail,
                             chunk_samples=chunk_samples,
                             overlap_samples=overlap_samples,
+                            advance_samples=advance_samples,
                             description=description,
                             loop=loop,
                         )
@@ -194,17 +252,11 @@ async def websocket_separate(ws: WebSocket) -> None:
                     )
                     continue
 
-                if prev_output is not None:
-                    output  = crossfade(prev_output, separated, overlap_samples)
-                    to_send = output[:-overlap_samples]
-                else:
-                    # Skip the very first overlap window (it's leading silence).
-                    to_send = separated[overlap_samples:]
+                to_send, prev_tail = _blend_and_advance(
+                    prev_tail, separated, overlap_samples, advance_samples
+                )
 
-                prev_output = separated
-
-                wav_bytes = encode_wav_chunk(to_send, settings.sample_rate)
-                await ws.send_bytes(wav_bytes)
+                await ws.send_bytes(encode_wav_chunk(to_send, settings.sample_rate))
 
     except WebSocketDisconnect:
         logger.info("Client disconnected")

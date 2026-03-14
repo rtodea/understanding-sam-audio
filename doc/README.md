@@ -12,6 +12,7 @@
 | [setup-windows.md](./setup-windows.md) | Verified setup for Windows 11 + NVIDIA RTX 4070 |
 | [deployment.md](./deployment.md) | Docker Compose and Kubernetes deployment recipes |
 | [realtime-webrtc.md](./realtime-webrtc.md) | Near-real-time streaming via WebRTC/WebSocket — browser mic+camera → separated audio download |
+| [webrtc-cloud.md](./webrtc-cloud.md) | Cloud deployment options for WebRTC + SAM-Audio (cost, DX, shutdown, CTO plan) |
 | [../webrtc.md](../webrtc.md) | How to run the WebRTC app (quick start, dev mode, config reference, troubleshooting) |
 
 ## One-Paragraph Summary
