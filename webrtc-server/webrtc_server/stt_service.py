@@ -11,6 +11,7 @@ asyncio.run_coroutine_threadsafe() to post results back to the event loop.
 
 import logging
 import threading
+import time
 
 import torch
 import torchaudio
@@ -130,28 +131,34 @@ class AzureSttStream:
 
     def stop(self) -> None:
         """
-        Flush with ~2 s of silence to force Azure to finalize any in-progress
+        Flush with ~4 s of silence to force Azure to finalize any in-progress
         utterance (mirrors the C++ stopListening() silence-flush trick), then
         tear down the recognizer.
 
-        Waits for the session_stopped event before returning so that all
-        recognized callbacks have fired — important for the CLI where processing
-        finishes faster than real-time and the last sentence would otherwise be lost.
+        Waits for session_stopped before returning, then adds a short grace period
+        for any recognized callback that races with session_stopped on Azure's
+        background threads — important for the CLI where audio processing finishes
+        faster than real-time and the last sentence would otherwise be lost.
 
         Blocks briefly — call from a thread pool, not from the event loop.
         """
         if self._push_stream is None:
             return
         self._session_done.clear()
-        # 2 s × 16-bit samples at 16 kHz
-        self._push_stream.write(bytes(_AZURE_SR * 2 * 2))
+        # 4 s of silence — gives Azure enough runway to finalize any in-progress
+        # utterance before we signal EOF. 2 s was sometimes too short when the
+        # last speech segment arrived right before stop() was called.
+        self._push_stream.write(bytes(_AZURE_SR * 4 * 2))
         self._push_stream.close()
         if self._recognizer:
             self._recognizer.stop_continuous_recognition_async().get()
-        # Wait for session_stopped — Azure fires this after all recognized
-        # callbacks have completed, guaranteeing no events are dropped.
+        # Wait for session_stopped — Azure fires this after recognition ends.
         if not self._session_done.wait(timeout=15):
             logger.warning("[STT:%s] timed out waiting for session_stopped", self._label)
+        # Brief grace period: session_stopped and a final recognized callback
+        # can race on Azure's background threads. A small sleep ensures any
+        # in-flight callback has landed before we allow callers to read events.
+        # time.sleep(0.5)
         self._push_stream = None
         self._recognizer  = None
         self._accumulated = ""

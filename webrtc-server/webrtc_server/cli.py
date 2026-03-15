@@ -282,6 +282,13 @@ def run(
             separated_chunks.append(to_send)
 
     # ── Flush overlap tail ────────────────────────────────────────────────────
+    # Before the tail, push prev_tail to stt_sep so Azure receives the overlap
+    # region at full-chunk quality (not as part of a padded/crossfaded blend).
+    # This ensures any speech that straddles the last chunk boundary arrives
+    # cleanly, without duplicating audio already sent via the main loop advances.
+    if stt_sep is not None and prev_tail is not None:
+        stt_sep.push(prev_tail, settings.sample_rate)
+
     tail = buf.flush()
     if tail is not None and tail.numel() > 0:
         actual = tail.numel()
@@ -300,7 +307,10 @@ def run(
 
         if to_send.numel() > 0:
             if stt_sep is not None:
-                stt_sep.push(to_send, settings.sample_rate)
+                # Push only the truly new samples (beyond the overlap region
+                # already sent via prev_tail above). No duplicates, no crossfade.
+                if new_part.numel() > 0:
+                    stt_sep.push(new_part, settings.sample_rate)
             separated_chunks.append(to_send)
 
     elapsed = time.monotonic() - t_start
