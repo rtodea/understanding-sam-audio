@@ -12,7 +12,16 @@ class Settings(BaseSettings):
     # Override device explicitly ("cuda" / "cpu"). Auto-detected when empty.
     device: str = ""
 
+    # Azure Speech-to-Text (optional — STT is disabled when key is empty).
+    azure_stt_key: str = ""
+    azure_stt_region: str = "eastus"
+    azure_stt_language: str = "en-US"
+
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @property
+    def stt_enabled(self) -> bool:
+        return bool(self.azure_stt_key)
 
     @property
     def effective_device(self) -> str:

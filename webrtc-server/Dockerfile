@@ -52,14 +52,34 @@ RUN uv pip install --no-cache "torchcodec>=0.3" \
 #
 # --mount=type=cache keeps the file in BuildKit's persistent cache so it is
 # downloaded exactly once across ALL builds, even when earlier layers change.
-RUN --mount=type=cache,target=/buildcache/imagebind \
+RUN --mount=type=cache,id=imagebind-v2,target=/buildcache/imagebind \
     mkdir -p /app/.checkpoints /buildcache/imagebind \
-    && if [ ! -f /buildcache/imagebind/imagebind_huge.pth ]; then \
-         curl -fL --retry 5 --retry-delay 10 --retry-max-time 600 \
-              -o /buildcache/imagebind/imagebind_huge.pth \
-              https://dl.fbaipublicfiles.com/imagebind/imagebind_huge.pth; \
+    && CACHED=/buildcache/imagebind/imagebind_huge.pth \
+    && TMP="${CACHED}.tmp" \
+    && MIN_BYTES=1500000000 \
+    && VALID=0 \
+    && if [ -f "$CACHED" ] && [ "$(stat -c%s "$CACHED")" -ge "$MIN_BYTES" ]; then \
+         VALID=1; \
        fi \
-    && cp /buildcache/imagebind/imagebind_huge.pth /app/.checkpoints/imagebind_huge.pth
+    && if [ "$VALID" = "0" ]; then \
+         for attempt in 1 2 3 4 5; do \
+           echo "[imagebind] download attempt ${attempt}/5 …"; \
+           curl -fL --max-time 1800 --retry 3 --retry-delay 10 --retry-all-errors \
+                -o "$TMP" \
+                https://dl.fbaipublicfiles.com/imagebind/imagebind_huge.pth \
+           && ACTUAL=$(stat -c%s "$TMP" 2>/dev/null || echo 0) \
+           && if [ "$ACTUAL" -ge "$MIN_BYTES" ]; then \
+                mv "$TMP" "$CACHED"; \
+                echo "[imagebind] download complete (${ACTUAL} bytes)"; \
+                break; \
+              else \
+                echo "[imagebind] attempt ${attempt} incomplete (${ACTUAL} bytes), retrying …"; \
+                rm -f "$TMP"; \
+              fi; \
+         done; \
+       fi \
+    && [ -f "$CACHED" ] && [ "$(stat -c%s "$CACHED")" -ge "$MIN_BYTES" ] \
+    && cp "$CACHED" /app/.checkpoints/imagebind_huge.pth
 
 # ── sam_audio package (repo root) ──────────────────────────────────────────
 # Two-stage install so that changing sam_audio source code does not

@@ -13,6 +13,7 @@ import { ControlPanel }         from './src/components/ControlPanel.js';
 import { VideoPreview }         from './src/components/VideoPreview.js';
 import { AudioVisualizer }      from './src/components/AudioVisualizer.js';
 import { DownloadButton }       from './src/components/DownloadButton.js';
+import { SttDisplay }          from './src/components/SttDisplay.js';
 
 // ── Browser capability check ───────────────────────────────────────────────
 
@@ -95,6 +96,9 @@ const visualizer   = new AudioVisualizer(
 const downloadBtn  = new DownloadButton(
   document.getElementById('download-container')
 );
+const sttDisplay   = new SttDisplay(
+  document.getElementById('stt-container')
+);
 
 // ── WebSocket URL (relative — NGINX proxies /api → server) ─────────────────
 
@@ -108,6 +112,13 @@ wsService.addEventListener('message', async (e) => {
   if (e.data instanceof ArrayBuffer) {
     recordChunk();
     await playback.enqueue(e.data);
+  } else if (typeof e.data === 'string') {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.event === 'stt') {
+        sttDisplay.update(msg.stream, msg.type, msg.text);
+      }
+    } catch { /* ignore malformed frames */ }
   }
 });
 
@@ -129,6 +140,7 @@ state.addEventListener('session:start', async () => {
   videoPreview.attachStream(stream);
   playback.init();
   resetChunkStats();
+  sttDisplay.reset();
   originalRecordingPromise = null;
   if (OriginalRecordingService.isSupported()) {
     originalRecording.start(stream);

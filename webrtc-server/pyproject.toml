@@ -10,6 +10,7 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
     "pydantic-settings>=2.0.0",
+    "azure-cognitiveservices-speech>=1.37.0",
     # torch / torchaudio are installed separately in the Dockerfile
     # to pick the correct CUDA wheel; do not pin them here.
 ]
