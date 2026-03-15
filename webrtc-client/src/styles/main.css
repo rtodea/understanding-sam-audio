@@ -188,6 +188,44 @@ h1 {
   flex-direction: column;
 }
 
+/* STT header */
+.stt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.stt-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.stt-dl-btns {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.stt-dl-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.stt-dl-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 /* Side-by-side text panels */
 .stt-panels {
   display: grid;
