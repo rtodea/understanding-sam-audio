@@ -179,35 +179,36 @@ h1 {
   grid-column: 1 / -1;
 }
 
-.stt-display {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--gap);
-}
-
-.stt-panel {
+.stt-wrap {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0.75rem 1rem;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  min-height: 5rem;
 }
+
+/* Side-by-side text panels */
+.stt-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.stt-panel {
+  padding: 0.65rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.stt-panel:first-child { border-right: 1px solid var(--border); }
 
 .stt-panel-header {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.stt-stream-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--accent);
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .stt-hint {
@@ -215,19 +216,107 @@ h1 {
   color: var(--muted);
 }
 
-.stt-text {
-  font-size: 0.95rem;
-  line-height: 1.6;
+.stt-panel-body {
+  font-size: 0.9rem;
+  line-height: 1.55;
   word-break: break-word;
+  min-height: 1.4rem;
 }
 
 .stt-recognized { color: var(--text); }
 .stt-partial    { color: var(--muted); font-style: italic; }
-.stt-empty      { color: var(--border); }
+.stt-empty      { color: var(--border); font-size: 0.85rem; }
 
 @media (max-width: 600px) {
-  .stt-display { grid-template-columns: 1fr; }
+  .stt-panels { grid-template-columns: 1fr; }
+  .stt-panel:first-child { border-right: none; border-bottom: 1px solid var(--border); }
 }
+
+/* Live partials */
+.stt-live {
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-height: 2.6rem;
+}
+
+.stt-live-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  min-height: 1.25rem;
+}
+
+.stt-partial-text {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Timeline */
+.stt-timeline {
+  overflow-y: auto;
+  max-height: 220px;
+  padding: 0.4rem 0;
+}
+
+.stt-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.88rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.stt-row:last-child { border-bottom: none; }
+
+/* Timestamp */
+.stt-ts {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+  min-width: 3.8rem;
+  flex-shrink: 0;
+}
+
+/* Stream badges */
+.stt-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.stt-badge-raw       { background: color-mix(in srgb, var(--accent) 20%, transparent);  color: var(--accent);  }
+.stt-badge-separated { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+
+/* Recognized text */
+.stt-text {
+  flex: 1;
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* Delta badge */
+.stt-delta {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.delta-fast { background: color-mix(in srgb, var(--success) 20%, transparent); color: var(--success); }
+.delta-mid  { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.delta-slow { background: color-mix(in srgb, var(--danger)  20%, transparent); color: var(--danger);  }
 
 /* ── Chunk stats ──────────────────────────────────────────── */
 #chunk-stats-container {
