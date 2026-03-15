@@ -27,6 +27,7 @@ import threading
 import time
 import wave
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -319,7 +320,8 @@ def run(
 
     # ── Write outputs ─────────────────────────────────────────────────────────
     out_dir.mkdir(parents=True, exist_ok=True)
-    stem = input_path.stem
+    ts   = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    stem = f"{input_path.stem}_{ts}"
 
     if save_audio:
         if separated_chunks:

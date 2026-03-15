@@ -29,6 +29,8 @@ services:
     working_dir: /app
     environment:
       PYTHONPATH: /app/webrtc-server:/app
+      # Models are already cached in hf-cache — skip network revision checks.
+      HF_HUB_OFFLINE: "1"
     # --reload watches the mounted source directory.
     command: >
       uvicorn webrtc_server.main:app

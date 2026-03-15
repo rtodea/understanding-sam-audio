@@ -10,6 +10,7 @@ asyncio.run_coroutine_threadsafe() to post results back to the event loop.
 """
 
 import logging
+import threading
 
 import torch
 import torchaudio
@@ -64,6 +65,7 @@ class AzureSttStream:
         self._accumulated  = ""
         self._on_recognizing = None
         self._on_recognized  = None
+        self._session_done   = threading.Event()
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -109,7 +111,7 @@ class AzureSttStream:
             lambda e: logger.info("[STT:%s] session started", self._label)
         )
         self._recognizer.session_stopped.connect(
-            lambda e: logger.info("[STT:%s] session stopped", self._label)
+            lambda e: (logger.info("[STT:%s] session stopped", self._label), self._session_done.set())
         )
         self._recognizer.canceled.connect(
             lambda e: logger.warning(
@@ -132,15 +134,24 @@ class AzureSttStream:
         utterance (mirrors the C++ stopListening() silence-flush trick), then
         tear down the recognizer.
 
+        Waits for the session_stopped event before returning so that all
+        recognized callbacks have fired — important for the CLI where processing
+        finishes faster than real-time and the last sentence would otherwise be lost.
+
         Blocks briefly — call from a thread pool, not from the event loop.
         """
         if self._push_stream is None:
             return
+        self._session_done.clear()
         # 2 s × 16-bit samples at 16 kHz
         self._push_stream.write(bytes(_AZURE_SR * 2 * 2))
         self._push_stream.close()
         if self._recognizer:
             self._recognizer.stop_continuous_recognition_async().get()
+        # Wait for session_stopped — Azure fires this after all recognized
+        # callbacks have completed, guaranteeing no events are dropped.
+        if not self._session_done.wait(timeout=15):
+            logger.warning("[STT:%s] timed out waiting for session_stopped", self._label)
         self._push_stream = None
         self._recognizer  = None
         self._accumulated = ""
