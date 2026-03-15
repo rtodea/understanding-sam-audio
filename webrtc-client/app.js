@@ -3,17 +3,18 @@
  * Imports components and services, wires the event graph, starts nothing automatically.
  */
 
-import { SessionState }         from './src/state/SessionState.js';
-import { MediaCaptureService }  from './src/services/MediaCaptureService.js';
-import { WebSocketService }     from './src/services/WebSocketService.js';
-import { AudioRecorderService } from './src/services/AudioRecorderService.js';
-import { AudioPlaybackService } from './src/services/AudioPlaybackService.js';
-import { OriginalRecordingService } from './src/services/OriginalRecordingService.js';
-import { ControlPanel }         from './src/components/ControlPanel.js';
-import { VideoPreview }         from './src/components/VideoPreview.js';
-import { AudioVisualizer }      from './src/components/AudioVisualizer.js';
-import { DownloadButton }       from './src/components/DownloadButton.js';
-import { SttDisplay }          from './src/components/SttDisplay.js';
+import { SessionState }            from './src/state/SessionState.js';
+import { MediaCaptureService }     from './src/services/MediaCaptureService.js';
+import { WebSocketService }        from './src/services/WebSocketService.js';
+import { AudioRecorderService }    from './src/services/AudioRecorderService.js';
+import { AudioPlaybackService }    from './src/services/AudioPlaybackService.js';
+import { AudioReplayService }      from './src/services/AudioReplayService.js';
+import { OriginalRecordingService} from './src/services/OriginalRecordingService.js';
+import { ControlPanel }            from './src/components/ControlPanel.js';
+import { VideoPreview }            from './src/components/VideoPreview.js';
+import { AudioVisualizer }         from './src/components/AudioVisualizer.js';
+import { DownloadButton }          from './src/components/DownloadButton.js';
+import { SttDisplay }              from './src/components/SttDisplay.js';
 
 // ── Browser capability check ───────────────────────────────────────────────
 
@@ -28,13 +29,15 @@ if (!AudioRecorderService.isSupported()) {
 
 // ── Services ───────────────────────────────────────────────────────────────
 
-const state        = new SessionState();
-const mediaCapture = new MediaCaptureService();
-const wsService    = new WebSocketService();
-const recorder     = new AudioRecorderService();
-const playback     = new AudioPlaybackService();
+const state             = new SessionState();
+const mediaCapture      = new MediaCaptureService();
+const wsService         = new WebSocketService();
+const recorder          = new AudioRecorderService();
+const replay            = new AudioReplayService();
+const playback          = new AudioPlaybackService();
 const originalRecording = new OriginalRecordingService();
-let originalRecordingPromise = null;
+let   originalRecordingPromise = null;
+let   progressTimer            = null;
 
 // ── Components ─────────────────────────────────────────────────────────────
 
@@ -42,8 +45,8 @@ const chunkStatsContainer = document.getElementById('chunk-stats-container');
 
 // ── Chunk latency tracking ──────────────────────────────────────────────────
 
-const ADVANCE_SECONDS = 1.5;   // server advance window — our "real-time" target
-const INTERVAL_HISTORY = 10;   // rolling average window
+const ADVANCE_SECONDS  = 1.5;
+const INTERVAL_HISTORY = 10;
 
 let chunkCount = 0;
 let lastChunkAt = null;
@@ -72,14 +75,14 @@ function recordChunk() {
     ? recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length
     : null;
 
-  const fmt  = (s) => s.toFixed(2) + 's';
-  const cls  = (s) => s <= ADVANCE_SECONDS ? 'stat-fast' : 'stat-slow';
+  const fmt = (s) => s.toFixed(2) + 's';
+  const cls = (s) => s <= ADVANCE_SECONDS ? 'stat-fast' : 'stat-slow';
 
   chunkStatsContainer.innerHTML = `
     <div class="chunk-stats">
       <span>chunks: <span class="stat-value">${chunkCount}</span></span>
       ${last != null ? `<span>last interval: <span class="stat-value ${cls(last)}">${fmt(last)}</span></span>` : ''}
-      ${avg != null ? `<span>avg interval: <span class="stat-value ${cls(avg)}">${fmt(avg)}</span></span>` : ''}
+      ${avg  != null ? `<span>avg interval: <span class="stat-value ${cls(avg)}">${fmt(avg)}</span></span>`  : ''}
       <span>target: <span class="stat-value">${ADVANCE_SECONDS}s</span></span>
     </div>`;
 }
@@ -104,8 +107,17 @@ const sttDisplay   = new SttDisplay(
 
 const wsUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/ws/separate`;
 
-recorder.addEventListener('chunk', (e) => {
-  wsService.sendBinary(e.detail);
+// ── Audio chunk routing ─────────────────────────────────────────────────────
+// Both live recorder and replay service emit 'chunk' — both pipe to wsService.
+
+recorder.addEventListener('chunk', (e) => wsService.sendBinary(e.detail));
+replay.addEventListener('chunk',   (e) => wsService.sendBinary(e.detail));
+
+// When replay finishes, trigger a clean session stop automatically.
+replay.addEventListener('end', () => {
+  if (state.status === 'active') {
+    state.dispatchEvent(new CustomEvent('session:stop'));
+  }
 });
 
 wsService.addEventListener('message', async (e) => {
@@ -115,18 +127,19 @@ wsService.addEventListener('message', async (e) => {
   } else if (typeof e.data === 'string') {
     try {
       const msg = JSON.parse(e.data);
-      if (msg.event === 'stt') {
-        sttDisplay.update(msg.stream, msg.type, msg.text);
-      }
+      if (msg.event === 'stt') sttDisplay.update(msg.stream, msg.type, msg.text);
     } catch { /* ignore malformed frames */ }
   }
 });
 
-// ── Session start ──────────────────────────────────────────────────────────
+// ── Session start (live mic) ───────────────────────────────────────────────
 
 state.addEventListener('session:start', async () => {
   state.setStatus('connecting');
+  state.setReplayMode(false);
   downloadBtn.hide();
+  resetChunkStats();
+  sttDisplay.reset();
 
   let stream;
   try {
@@ -139,8 +152,6 @@ state.addEventListener('session:start', async () => {
 
   videoPreview.attachStream(stream);
   playback.init();
-  resetChunkStats();
-  sttDisplay.reset();
   originalRecordingPromise = null;
   if (OriginalRecordingService.isSupported()) {
     originalRecording.start(stream);
@@ -152,24 +163,70 @@ state.addEventListener('session:start', async () => {
     visualizer.attach(recorder.getAnalyserNode());
     wsService.sendJson({
       description: state.description,
-      encoding: 'pcm_f32le',
-      sampleRate: recorder.sampleRate,
+      encoding:    'pcm_f32le',
+      sampleRate:  recorder.sampleRate,
     });
     state.setStatus('active');
   }, { once: true });
 
   wsService.addEventListener('error', () => {
     state.setError('WebSocket connection error — is the server running?');
-    finalizeSession();
+    void finalizeSession();
   }, { once: true });
 
   wsService.addEventListener('close', () => {
-    if (state.status !== 'idle') {
-      void finalizeSession();
-    }
+    if (state.status !== 'idle') void finalizeSession();
   }, { once: true });
 
-  // Connect AFTER attaching listeners to avoid missing 'open' on fast connections
+  wsService.connect(wsUrl);
+});
+
+// ── Session start (replay) ─────────────────────────────────────────────────
+
+state.addEventListener('session:replay', async ({ detail: { file } }) => {
+  state.setStatus('connecting');
+  state.setReplayMode(true);
+  downloadBtn.hide();
+  resetChunkStats();
+  sttDisplay.reset();
+
+  try {
+    await replay.load(file);
+  } catch (err) {
+    state.setError(`Failed to decode file: ${err.message}`);
+    state.setStatus('idle');
+    state.setReplayMode(false);
+    return;
+  }
+
+  videoPreview.attachFile(file);
+  playback.init();
+
+  wsService.addEventListener('open', () => {
+    replay.start(250);
+    videoPreview.play();
+    wsService.sendJson({
+      description: state.description,
+      encoding:    'pcm_f32le',
+      sampleRate:  replay.sampleRate,
+    });
+    state.setStatus('active');
+    // Tick progress bar while replaying.
+    progressTimer = setInterval(
+      () => controlPanel.setProgress(replay.currentTime, replay.duration),
+      100,
+    );
+  }, { once: true });
+
+  wsService.addEventListener('error', () => {
+    state.setError('WebSocket connection error — is the server running?');
+    void finalizeSession();
+  }, { once: true });
+
+  wsService.addEventListener('close', () => {
+    if (state.status !== 'idle') void finalizeSession();
+  }, { once: true });
+
   wsService.connect(wsUrl);
 });
 
@@ -181,34 +238,53 @@ function teardownSession() {
   if (state.status !== 'active') return;
   state.setStatus('stopping');
 
-  recorder.stop();
-  originalRecordingPromise = originalRecording.stop();
-  mediaCapture.stop();
-  videoPreview.detach();
-  visualizer.detach();
+  if (state.replayMode) {
+    replay.stop();
+    clearInterval(progressTimer);
+    progressTimer = null;
+    videoPreview.detach();
+  } else {
+    recorder.stop();
+    originalRecordingPromise = originalRecording.stop();
+    mediaCapture.stop();
+    videoPreview.detach();
+    visualizer.detach();
+  }
+
   wsService.sendJson({ event: 'stop' });
 }
 
 async function finalizeSession() {
   if (state.status === 'idle') return;
 
-  recorder.stop();
-  if (!originalRecordingPromise) {
-    originalRecordingPromise = originalRecording.stop();
+  let originalBlob = null;
+
+  if (state.replayMode) {
+    replay.stop();
+    clearInterval(progressTimer);
+    progressTimer = null;
+    videoPreview.detach();
+  } else {
+    recorder.stop();
+    if (!originalRecordingPromise) {
+      originalRecordingPromise = originalRecording.stop();
+    }
+    mediaCapture.stop();
+    videoPreview.detach();
+    visualizer.detach();
+    originalBlob = await originalRecordingPromise;
+    originalRecordingPromise = null;
   }
-  mediaCapture.stop();
-  videoPreview.detach();
-  visualizer.detach();
+
   wsService.disconnect();
 
   await playback.drain();
-  const originalBlob = await originalRecordingPromise;
-  originalRecordingPromise = null;
   downloadBtn.present({
     separatedChunks: playback.getDecodedChunks(),
     originalBlob,
   });
   playback.reset();
 
+  state.setReplayMode(false);
   state.setStatus('idle');
 }

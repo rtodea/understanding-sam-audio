@@ -7,13 +7,17 @@
  */
 export class SessionState extends EventTarget {
   /** @type {'idle'|'connecting'|'active'|'stopping'} */
-  #status = 'idle';
+  #status      = 'idle';
   #description = 'person speaking';
-  #error = null;
+  #error       = null;
+  #replayMode  = false;
 
   get status()      { return this.#status; }
   get description() { return this.#description; }
   get error()       { return this.#error; }
+  get replayMode()  { return this.#replayMode; }
+
+  setReplayMode(v) { this.#replayMode = v; }
 
   setStatus(status) {
     this.#status = status;
