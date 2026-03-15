@@ -15,6 +15,9 @@ dependencies = [
     # to pick the correct CUDA wheel; do not pin them here.
 ]
 
+[project.scripts]
+sam-cli = "webrtc_server.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["webrtc_server*"]

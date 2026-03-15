@@ -264,6 +264,86 @@ docker compose -f webrtc-docker-compose.yml down --volumes --remove-orphans \
 
 ---
 
+## Headless CLI
+
+Run the full separation + STT pipeline on a local file — no browser, no WebSocket server required.
+Useful for comparing model quality across `sam-audio-small / base / large` on the same golden file.
+
+### Getting files into the container
+
+The dev stack bind-mounts `./data/` on your host to `/data` inside the container. Drop any input files there — no `docker cp` needed:
+
+```
+# On your host:
+sam-audio/
+└── data/
+    └── recording.webm   ← put files here
+```
+
+They appear immediately at `/data/recording.webm` inside the container. Write outputs there too and they land back on your host automatically.
+
+### Basic usage
+
+```bash
+# Shell into the running container
+docker compose -f webrtc-docker-compose.yml -f webrtc-docker-compose.dev.yml \
+    exec webrtc-server bash
+
+# Inside the container:
+python -m webrtc_server.cli /data/recording.webm "person speaking"
+```
+
+Input can be any format `torchaudio` supports: WebM, WAV, MP4, OGG.
+
+### Common invocations
+
+```bash
+# Save separated + original WAV alongside transcripts
+python -m webrtc_server.cli recording.webm "person speaking" --save-audio
+
+# Write outputs to a specific directory
+python -m webrtc_server.cli recording.webm "guitar" --out-dir results/guitar/
+
+# Skip STT — test separation pipeline only (faster, no Azure key needed)
+python -m webrtc_server.cli recording.webm "person speaking" --no-stt --save-audio
+
+# One-liner from the host
+docker compose -f webrtc-docker-compose.yml -f webrtc-docker-compose.dev.yml \
+    exec webrtc-server \
+    python -m webrtc_server.cli /data/recording.webm "person speaking" \
+    --out-dir /data/results/ --save-audio
+```
+
+### Output files
+
+| File | Content |
+|---|---|
+| `<stem>_transcript.txt` | Human-readable, recognized sentences only, with Δ latency |
+| `<stem>_transcript.csv` | `time_sec, stream, type, delta_sec, text` — recognized sentences |
+| `<stem>_transcript_full.csv` | Same columns including interim "recognizing" partials |
+| `<stem>_separated.wav` | Separated audio (`--save-audio` only) |
+| `<stem>_original.wav` | Mono-mixed original (`--save-audio` only) |
+
+`AZURE_STT_KEY` must be set in `.env.webrtc` for transcript output. Separation works without it.
+
+### Comparing models
+
+Pass `SAM_MODEL` as an env var — no code change needed:
+
+```bash
+for model in small base large; do
+    SAM_MODEL=facebook/sam-audio-${model} \
+    python -m webrtc_server.cli golden.webm "person speaking" \
+        --out-dir results/${model}/ --save-audio
+done
+```
+
+### What `delta_sec` means
+
+In the browser Δ is wall-clock latency. In the CLI it is the **audio-stream position** difference: for each `separated/recognized` event, `delta_sec` = its audio position minus the audio position of the most recent `raw/recognized` event. This tells you how many audio-seconds of lag the separation pipeline introduced, independent of how fast the batch ran.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |

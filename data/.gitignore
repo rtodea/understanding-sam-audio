@@ -1,0 +1,6 @@
+# Drop any input/output files here — they are bind-mounted into the
+# webrtc-server container at /data (via webrtc-docker-compose.dev.yml).
+#
+# Ignore everything except this file.
+*
+!.gitignore

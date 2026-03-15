@@ -25,6 +25,7 @@ services:
       - ./sam_audio:/app/sam_audio:ro
       - ./webrtc-server/webrtc_server:/app/webrtc-server/webrtc_server:ro
       - hf-cache:/app/hf_cache
+      - ./data:/data
     working_dir: /app
     environment:
       PYTHONPATH: /app/webrtc-server:/app
