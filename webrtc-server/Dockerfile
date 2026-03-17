@@ -30,6 +30,9 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 # uv equivalents: install into system Python and bypass PEP 668 protection
 ENV UV_SYSTEM_PYTHON=1
 ENV UV_BREAK_SYSTEM_PACKAGES=1
+# pypi.nvidia.com serves large CUDA wheels (200–400 MB each) and is slow;
+# raise the per-request timeout so uv doesn't abort mid-download.
+ENV UV_HTTP_TIMEOUT=600
 
 # ── uv ─────────────────────────────────────────────────────────────────────
 RUN pip install --no-cache-dir uv

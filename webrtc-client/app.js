@@ -103,9 +103,18 @@ const sttDisplay   = new SttDisplay(
   document.getElementById('stt-container')
 );
 
-// ── WebSocket URL (relative — NGINX proxies /api → server) ─────────────────
+// ── WebSocket URL ───────────────────────────────────────────────────────────
+// Default: relative to current host (NGINX proxies /api → server).
+// Override: pass ?api_url=http://other-host:8000 to connect to an external server.
 
-const wsUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/ws/separate`;
+const _apiUrl = new URLSearchParams(location.search).get('api_url');
+const wsUrl = _apiUrl
+  ? `${_apiUrl.replace(/^http/, 'ws').replace(/\/$/, '')}/api/ws/separate`
+  : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/ws/separate`;
+
+if (_apiUrl) {
+  console.info('[app] Using external api_url:', _apiUrl, '→', wsUrl);
+}
 
 // ── Audio chunk routing ─────────────────────────────────────────────────────
 // Both live recorder and replay service emit 'chunk' — both pipe to wsService.
