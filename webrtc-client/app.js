@@ -109,7 +109,7 @@ const sttDisplay   = new SttDisplay(
 
 const _apiUrl = new URLSearchParams(location.search).get('api_url');
 const wsUrl = _apiUrl
-  ? `${_apiUrl.replace(/^http/, 'ws').replace(/\/$/, '')}/api/ws/separate`
+  ? `${_apiUrl.replace(/^http/, 'ws').replace(/\/$/, '')}/ws/separate`
   : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/ws/separate`;
 
 if (_apiUrl) {

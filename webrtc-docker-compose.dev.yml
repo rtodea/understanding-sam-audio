@@ -19,6 +19,8 @@ services:
       - ./webrtc-nginx/conf.d:/etc/nginx/conf.d:ro
 
   webrtc-server:
+    ports:
+      - "8000:8000"
     volumes:
       # Mount source trees and add their parent directories to PYTHONPATH so
       # the dev server imports local code instead of the installed copies.
